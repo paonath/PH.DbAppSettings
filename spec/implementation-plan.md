@@ -1,3 +1,17 @@
+---
+type: execution-plan
+title: "PH.DbAppSettings — Implementation Plan"
+version: "1.0.0"
+status: completed
+created: 2026-05-14
+updated: 2026-05-14
+author: "AI Developer"
+project: "PH.DbAppSettings"
+target: ai
+task-count: 17
+tags: [dotnet, efcore, configuration]
+---
+
 # PH.DbAppSettings — Implementation Plan
 
 > **Scopo:** Questo documento è un piano di implementazione atomico destinato a un'AI. Ogni task è indipendente, verificabile e deve essere eseguito nell'ordine indicato. Non procedere al task successivo senza aver completato e verificato il precedente.

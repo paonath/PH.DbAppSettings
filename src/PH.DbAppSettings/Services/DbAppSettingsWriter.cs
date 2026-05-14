@@ -61,6 +61,12 @@ public sealed class DbAppSettingsWriter : IDbAppSettingsWriter
         await _dbContext.SaveChangesAsync(ct);
     }
 
+    public Task SetAsync<T>(string key, T value, CancellationToken ct = default)
+    {
+        var stringValue = value is null ? null : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+        return SetAsync(key, stringValue, ct);
+    }
+
     public async Task DeleteAsync(string key, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);

@@ -67,6 +67,7 @@ public static class DbAppSettingsExtensions
             dbOpts.UseSqlite(options.ConnectionString));
 
         services.AddSingleton(options);
+        services.AddScoped<IDbAppSettingsReader, DbAppSettingsReader>();
         services.AddScoped<IDbAppSettingsWriter, DbAppSettingsWriter>();
         services.AddTransient<SeedService>();
 
