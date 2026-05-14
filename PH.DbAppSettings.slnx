@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PH.DbAppSettings/PH.DbAppSettings.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PH.DbAppSettings.Tests/PH.DbAppSettings.Tests.csproj" />
+  </Folder>
+</Solution>
