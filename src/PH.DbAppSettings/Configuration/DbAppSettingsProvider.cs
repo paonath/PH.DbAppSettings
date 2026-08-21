@@ -84,7 +84,8 @@ public sealed class DbAppSettingsProvider : ConfigurationProvider
                 }
             }
 
-            data[entry.Key] = value;
+            var configKey = KeyNormalizer.ToConfigurationKey(entry.Key);
+            data[configKey] = value;
         }
 
         Data = data;
@@ -92,9 +93,21 @@ public sealed class DbAppSettingsProvider : ConfigurationProvider
             data.Count, _options.Environment);
     }
 
+    public override bool TryGet(string key, out string? value)
+    {
+        if (base.TryGet(key, out value))
+        {
+            return true;
+        }
+
+        var normalizedKey = KeyNormalizer.ToConfigurationKey(key);
+        return base.TryGet(normalizedKey, out value);
+    }
+
     public override void Set(string key, string? value)
     {
-        Data[key] = value;
+        var configKey = KeyNormalizer.ToConfigurationKey(key);
+        Data[configKey] = value;
         OnReload();
     }
 
