@@ -6,4 +6,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/PH.DbAppSettings.Tests/PH.DbAppSettings.Tests.csproj" />
   </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/PH.DbAppSettings.Example.MinimalApi/PH.DbAppSettings.Example.MinimalApi.csproj" />
+  </Folder>
 </Solution>

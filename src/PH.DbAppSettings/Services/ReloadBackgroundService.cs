@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PH.DbAppSettings.Configuration;
@@ -9,11 +11,30 @@ namespace PH.DbAppSettings.Services;
 
 public sealed class ReloadBackgroundService : BackgroundService
 {
-    private readonly DbAppSettingsProvider _provider;
+    private readonly DbAppSettingsProvider? _provider;
+    private readonly IConfiguration? _configuration;
     private readonly DbAppSettingsOptions _options;
     private readonly IDbAppSettingsStorageEngine _storageEngine;
     private readonly ILogger<ReloadBackgroundService> _logger;
     private DateTimeOffset _lastSeenTimestamp = DateTimeOffset.MinValue;
+
+    [ActivatorUtilitiesConstructor]
+    public ReloadBackgroundService(
+        IConfiguration configuration,
+        DbAppSettingsOptions options,
+        IDbAppSettingsStorageEngine storageEngine,
+        ILogger<ReloadBackgroundService> logger)
+    {
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _storageEngine = storageEngine ?? throw new ArgumentNullException(nameof(storageEngine));
+        _logger = logger;
+
+        if (_configuration is IConfigurationRoot root)
+        {
+            _provider = root.Providers.OfType<DbAppSettingsProvider>().FirstOrDefault();
+        }
+    }
 
     public ReloadBackgroundService(
         DbAppSettingsProvider provider,
@@ -75,8 +96,15 @@ public sealed class ReloadBackgroundService : BackgroundService
                 if (hasChanges)
                 {
                     _logger.LogInformation("Configuration changes detected via timestamp. Reloading...");
-                    await _provider.LoadAsync(stoppingToken);
-                    _provider.TriggerReload();
+                    if (_provider is not null)
+                    {
+                        await _provider.LoadAsync(stoppingToken);
+                        _provider.TriggerReload();
+                    }
+                    else if (_configuration is IConfigurationRoot root)
+                    {
+                        root.Reload();
+                    }
                     _logger.LogInformation("Configuration reloaded successfully.");
                 }
             }

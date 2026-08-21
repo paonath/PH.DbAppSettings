@@ -25,15 +25,6 @@ public sealed class DbAppSettingsWriter : IDbAppSettingsWriter
         _encryptor = encryptor;
     }
 
-    public DbAppSettingsWriter(
-        AppSettingsDbContext dbContext,
-        DbAppSettingsOptions options,
-        ILogger<DbAppSettingsWriter> logger,
-        IValueEncryptor? encryptor = null)
-        : this(new EfCoreStorageEngine(dbContext), options, logger, encryptor)
-    {
-    }
-
     public async Task SetAsync(string key, string? value, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Services;
+using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -145,7 +146,7 @@ public class TypedReadingTests : IDisposable
     public async Task Test_SetAsyncTyped_Int_RoundTrip()
     {
         var dbOpts = new DbAppSettingsOptions { ConnectionString = _connString, Environment = "Test" };
-        var writer = new DbAppSettingsWriter(_dbContext, dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
+        var writer = new DbAppSettingsWriter(new EfCoreStorageEngine(_dbContext), dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
 
         await writer.SetAsync<int>("Settings__MaxItems", 100);
 
@@ -169,7 +170,7 @@ public class TypedReadingTests : IDisposable
     public async Task Test_SetAsyncTyped_Bool_RoundTrip()
     {
         var dbOpts = new DbAppSettingsOptions { ConnectionString = _connString, Environment = "Test" };
-        var writer = new DbAppSettingsWriter(_dbContext, dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
+        var writer = new DbAppSettingsWriter(new EfCoreStorageEngine(_dbContext), dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
 
         await writer.SetAsync<bool>("Settings__IsEnabled", true);
 

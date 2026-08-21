@@ -58,6 +58,19 @@ public static class DbAppSettingsExtensions
     }
 
     /// <summary>
+    /// Registra i servizi DbAppSettings nel DI container con configurazione fluida.
+    /// </summary>
+    public static IServiceCollection AddDbAppSettingsServices(
+        this IServiceCollection services,
+        Action<DbAppSettingsMutableOptions> configure)
+    {
+        var mutable = new DbAppSettingsMutableOptions();
+        configure(mutable);
+        var options = mutable.ToOptions();
+        return services.AddDbAppSettingsServices(options);
+    }
+
+    /// <summary>
     /// Registra i servizi DbAppSettings nel DI container.
     /// </summary>
     public static IServiceCollection AddDbAppSettingsServices(
