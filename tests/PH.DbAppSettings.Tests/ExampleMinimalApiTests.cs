@@ -121,7 +121,7 @@ public class ExampleMinimalApiTests : IDisposable
     }
 
     [Fact]
-    public void MinimalApi_SeedsAndBinds_FullApplicationOptions()
+    public async Task MinimalApi_SeedsAndBinds_FullApplicationOptions()
     {
         // Arrange & Act
         using var sp = BuildServiceProvider(out _);
@@ -158,6 +158,15 @@ public class ExampleMinimalApiTests : IDisposable
         Assert.Equal(2, options.Features.AllowedOrigins.Count);
         Assert.Equal("https://app.company.com", options.Features.AllowedOrigins[0]);
         Assert.Equal("https://admin.company.com", options.Features.AllowedOrigins[1]);
+
+        // Verify that database storage contains ONLY the JSON keys and ZERO environment variables
+        using var scope = sp.CreateScope();
+        var storage = scope.ServiceProvider.GetRequiredService<Storage.IDbAppSettingsStorageEngine>();
+        var dbEntries = await storage.GetAllAsync("Production");
+        Assert.DoesNotContain(dbEntries, e => e.Key.Equals("PATH", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(dbEntries, e => e.Key.Equals("USER", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(dbEntries, e => e.Key.Equals("HOME", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(dbEntries, e => e.Key.StartsWith("DbAppSettings", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

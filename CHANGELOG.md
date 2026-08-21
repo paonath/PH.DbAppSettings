@@ -20,10 +20,11 @@ Branch: feature/first_rel | Commit: 5743a2d
 - Added `KeyNormalizer` for bidirectional mapping between `:` (Microsoft Options standard) and `__` (database/environment safe delimiter).
 - Added `UpdatedAt` (`DateTimeOffset`) timestamp column tracking for $O(1)$ change detection.
 - Added fluent engine configuration helpers (`UseDapper`, `UseDapperSqlite`, `UseEntityFramework`, `UseEntityFrameworkSqlite`).
-- Comprehensive unit and integration test suite with 87 tests (100% green).
+- Comprehensive unit and integration test suite with 89 tests (100% green).
 - Repository and project-level governance `AGENTS.md` files for root, core library, CLI, and test projects.
 
 ### Changed
+- Refactored `SeedService` with provider-aware extraction to seed keys exclusively from `JsonConfigurationProvider` / `FileConfigurationProvider`.
 - Refactored `ReloadBackgroundService` to query `MAX(UpdatedAt)` instead of performing full table diffs.
 - Refactored `DbAppSettingsProvider`, `DbAppSettingsWriter`, and `SeedService` to operate over `IDbAppSettingsStorageEngine`.
 - Updated `AppSettingsEntryConfiguration` with ISO-8601 string value conversion for SQLite ordering compatibility.
@@ -33,3 +34,6 @@ Branch: feature/first_rel | Commit: 5743a2d
 ### Fixed
 - Fixed DI constructor resolution for `ReloadBackgroundService` and `DbAppSettingsWriter` when hosted inside ASP.NET Core applications.
 - Fixed Microsoft Options binding (`IOptions<T>`, `IOptionsSnapshot<T>`, `IOptionsMonitor<T>`) by normalizing configuration keys to `:` delimiter in memory.
+
+### Security
+- Excluded operating system environment variables, process variables, and secrets from being persisted into the database table during seeding, while preserving them in memory for Microsoft Configuration layering.
