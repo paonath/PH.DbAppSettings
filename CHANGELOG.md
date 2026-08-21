@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-08-21 UTC
-Branch: feature/first_rel | Commit: bfc8aca
+Branch: feature/first_rel | Commit: 5743a2d
 
 ### Added
 - Example Minimal API project (`examples/PH.DbAppSettings.Example.MinimalApi`) demonstrating **Entity Framework Core 10**, local SQLite database in `App_Data/`, rich nested configuration dataset, and typed Options records hierarchy.
