@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dbappsettings</ToolCommandName>
+    <AssemblyName>PH.DbAppSettings.Cli</AssemblyName>
+    <RootNamespace>PH.DbAppSettings.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PH.DbAppSettings.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PH.DbAppSettings\PH.DbAppSettings.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.*" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.49.*" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.*-*" />
+    <PackageReference Include="Npgsql" Version="9.*-*" />
+    <PackageReference Include="MySqlConnector" Version="2.*-*" />
+  </ItemGroup>
+
+</Project>

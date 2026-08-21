@@ -1,28 +1,38 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Encryption;
+using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings.Services;
 
 public sealed class SeedService
 {
-    private readonly AppSettingsDbContext _dbContext;
+    private readonly IDbAppSettingsStorageEngine _storageEngine;
     private readonly DbAppSettingsOptions _options;
     private readonly ILogger<SeedService> _logger;
     private readonly IValueEncryptor? _encryptor;
+
+    public SeedService(
+        IDbAppSettingsStorageEngine storageEngine,
+        DbAppSettingsOptions options,
+        ILogger<SeedService> logger,
+        IValueEncryptor? encryptor = null)
+    {
+        _storageEngine = storageEngine ?? throw new ArgumentNullException(nameof(storageEngine));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _logger = logger;
+        _encryptor = encryptor;
+    }
 
     public SeedService(
         AppSettingsDbContext dbContext,
         DbAppSettingsOptions options,
         ILogger<SeedService> logger,
         IValueEncryptor? encryptor = null)
+        : this(new EfCoreStorageEngine(dbContext), options, logger, encryptor)
     {
-        _dbContext = dbContext;
-        _options = options;
-        _logger = logger;
-        _encryptor = encryptor;
     }
 
     public async Task SeedAsync(IConfiguration configuration, CancellationToken ct = default)
@@ -35,6 +45,7 @@ public sealed class SeedService
 
         int seeded = 0;
         int skipped = 0;
+        var recordsToUpsert = new List<AppSettingRecord>();
 
         foreach (var (rawKey, rawValue) in allEntries)
         {
@@ -45,7 +56,7 @@ public sealed class SeedService
                 continue;
             }
 
-            var dbKey = rawKey.Replace(":", "__");
+            var dbKey = KeyNormalizer.ToDbKey(rawKey);
             var value = rawValue;
             var isEncrypted = false;
 
@@ -55,46 +66,10 @@ public sealed class SeedService
                 isEncrypted = true;
             }
 
-            if (_options.ForceReseed)
+            if (!_options.ForceReseed)
             {
-                var existing = await _dbContext.AppSettings
-                    .FirstOrDefaultAsync(e => e.Key == dbKey && e.Environment == _options.Environment, ct);
-
+                var existing = await _storageEngine.GetByKeyAsync(dbKey, _options.Environment, ct);
                 if (existing is not null)
-                {
-                    existing.Value = value;
-                    existing.IsEncrypted = isEncrypted;
-                    _logger.LogDebug("Force-reseeding key: {Key}", dbKey);
-                }
-                else
-                {
-                    _dbContext.AppSettings.Add(new AppSettingEntry
-                    {
-                        Key = dbKey,
-                        Environment = _options.Environment,
-                        Value = value,
-                        IsEncrypted = isEncrypted
-                    });
-                    _logger.LogDebug("Seeding new key: {Key}", dbKey);
-                }
-            }
-            else
-            {
-                var exists = await _dbContext.AppSettings
-                    .AnyAsync(e => e.Key == dbKey && e.Environment == _options.Environment, ct);
-
-                if (!exists)
-                {
-                    _dbContext.AppSettings.Add(new AppSettingEntry
-                    {
-                        Key = dbKey,
-                        Environment = _options.Environment,
-                        Value = value,
-                        IsEncrypted = isEncrypted
-                    });
-                    _logger.LogDebug("Seeding new key: {Key}", dbKey);
-                }
-                else
                 {
                     _logger.LogDebug("Key already exists, skipping: {Key}", dbKey);
                     skipped++;
@@ -102,10 +77,23 @@ public sealed class SeedService
                 }
             }
 
+            recordsToUpsert.Add(new AppSettingRecord
+            {
+                Key = dbKey,
+                Environment = _options.Environment,
+                Value = value,
+                IsEncrypted = isEncrypted,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+
             seeded++;
         }
 
-        await _dbContext.SaveChangesAsync(ct);
+        if (recordsToUpsert.Count > 0)
+        {
+            await _storageEngine.UpsertBatchAsync(recordsToUpsert, ct);
+        }
+
         _logger.LogInformation("Seeding complete. Seeded: {Seeded}, Skipped: {Skipped}", seeded, skipped);
     }
 }

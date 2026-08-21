@@ -1,33 +1,44 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Encryption;
+using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings.Services;
 
 public sealed class DbAppSettingsWriter : IDbAppSettingsWriter
 {
-    private readonly AppSettingsDbContext _dbContext;
+    private readonly IDbAppSettingsStorageEngine _storageEngine;
     private readonly DbAppSettingsOptions _options;
     private readonly ILogger<DbAppSettingsWriter> _logger;
     private readonly IValueEncryptor? _encryptor;
+
+    public DbAppSettingsWriter(
+        IDbAppSettingsStorageEngine storageEngine,
+        DbAppSettingsOptions options,
+        ILogger<DbAppSettingsWriter> logger,
+        IValueEncryptor? encryptor = null)
+    {
+        _storageEngine = storageEngine ?? throw new ArgumentNullException(nameof(storageEngine));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _logger = logger;
+        _encryptor = encryptor;
+    }
 
     public DbAppSettingsWriter(
         AppSettingsDbContext dbContext,
         DbAppSettingsOptions options,
         ILogger<DbAppSettingsWriter> logger,
         IValueEncryptor? encryptor = null)
+        : this(new EfCoreStorageEngine(dbContext), options, logger, encryptor)
     {
-        _dbContext = dbContext;
-        _options = options;
-        _logger = logger;
-        _encryptor = encryptor;
     }
 
     public async Task SetAsync(string key, string? value, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
+        var dbKey = KeyNormalizer.ToDbKey(key);
         var isEncrypted = false;
         var storedValue = value;
 
@@ -37,28 +48,17 @@ public sealed class DbAppSettingsWriter : IDbAppSettingsWriter
             isEncrypted = true;
         }
 
-        var existing = await _dbContext.AppSettings
-            .FirstOrDefaultAsync(e => e.Key == key && e.Environment == _options.Environment, ct);
-
-        if (existing is not null)
+        var entry = new AppSettingRecord
         {
-            existing.Value = storedValue;
-            existing.IsEncrypted = isEncrypted;
-            _logger.LogDebug("Updated key: {Key} in environment: {Environment}", key, _options.Environment);
-        }
-        else
-        {
-            _dbContext.AppSettings.Add(new AppSettingEntry
-            {
-                Key = key,
-                Environment = _options.Environment,
-                Value = storedValue,
-                IsEncrypted = isEncrypted
-            });
-            _logger.LogDebug("Inserted key: {Key} in environment: {Environment}", key, _options.Environment);
-        }
+            Key = dbKey,
+            Environment = _options.Environment,
+            Value = storedValue,
+            IsEncrypted = isEncrypted,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
 
-        await _dbContext.SaveChangesAsync(ct);
+        await _storageEngine.UpsertAsync(entry, ct);
+        _logger.LogDebug("Saved key: {Key} in environment: {Environment}", dbKey, _options.Environment);
     }
 
     public Task SetAsync<T>(string key, T value, CancellationToken ct = default)
@@ -71,18 +71,16 @@ public sealed class DbAppSettingsWriter : IDbAppSettingsWriter
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
 
-        var existing = await _dbContext.AppSettings
-            .FirstOrDefaultAsync(e => e.Key == key && e.Environment == _options.Environment, ct);
+        var dbKey = KeyNormalizer.ToDbKey(key);
+        var deleted = await _storageEngine.DeleteAsync(dbKey, _options.Environment, ct);
 
-        if (existing is not null)
+        if (deleted)
         {
-            _dbContext.AppSettings.Remove(existing);
-            await _dbContext.SaveChangesAsync(ct);
-            _logger.LogDebug("Deleted key: {Key} in environment: {Environment}", key, _options.Environment);
+            _logger.LogDebug("Deleted key: {Key} in environment: {Environment}", dbKey, _options.Environment);
         }
         else
         {
-            _logger.LogWarning("Key not found for deletion: {Key} in environment: {Environment}", key, _options.Environment);
+            _logger.LogWarning("Key not found for deletion: {Key} in environment: {Environment}", dbKey, _options.Environment);
         }
     }
 }

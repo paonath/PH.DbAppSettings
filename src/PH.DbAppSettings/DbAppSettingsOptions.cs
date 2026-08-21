@@ -1,14 +1,16 @@
+using PH.DbAppSettings.Storage;
+
 namespace PH.DbAppSettings;
 
 public sealed class DbAppSettingsOptions
 {
-    /// <summary>Connection string al DB di configurazione. OBBLIGATORIA.</summary>
-    public required string ConnectionString { get; init; }
+    /// <summary>Connection string al DB di configurazione. OBBLIGATORIA se non fornita factory personalizzata.</summary>
+    public string? ConnectionString { get; init; }
 
     /// <summary>Nome dell'ambiente (default: ASPNETCORE_ENVIRONMENT ?? "Production").</summary>
     public string Environment { get; init; } = "Production";
 
-    /// <summary>Applica automaticamente le migrazioni EF al bootstrap.</summary>
+    /// <summary>Applica automaticamente le migrazioni o creazione tabella al bootstrap.</summary>
     public bool AutoMigrate { get; init; } = true;
 
     /// <summary>Esegue il seeding da appsettings.json se il DB è vuoto.</summary>
@@ -31,4 +33,7 @@ public sealed class DbAppSettingsOptions
 
     /// <summary>Nome della tabella (default: "AppSettings").</summary>
     public string TableName { get; init; } = "AppSettings";
+
+    /// <summary>Factory per il motore di storage configurato (Dapper o EF Core).</summary>
+    public Func<IDbAppSettingsStorageEngine>? StorageEngineFactory { get; init; }
 }

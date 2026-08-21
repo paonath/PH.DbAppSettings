@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
+using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings.Services;
 
@@ -10,17 +11,33 @@ public sealed class ReloadBackgroundService : BackgroundService
 {
     private readonly DbAppSettingsProvider _provider;
     private readonly DbAppSettingsOptions _options;
+    private readonly IDbAppSettingsStorageEngine _storageEngine;
     private readonly ILogger<ReloadBackgroundService> _logger;
-    private Dictionary<string, string?> _lastSnapshot = new(StringComparer.OrdinalIgnoreCase);
+    private DateTimeOffset _lastSeenTimestamp = DateTimeOffset.MinValue;
+
+    public ReloadBackgroundService(
+        DbAppSettingsProvider provider,
+        DbAppSettingsOptions options,
+        IDbAppSettingsStorageEngine storageEngine,
+        ILogger<ReloadBackgroundService> logger)
+    {
+        _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _storageEngine = storageEngine ?? throw new ArgumentNullException(nameof(storageEngine));
+        _logger = logger;
+    }
 
     public ReloadBackgroundService(
         DbAppSettingsProvider provider,
         DbAppSettingsOptions options,
         ILogger<ReloadBackgroundService> logger)
+        : this(
+            provider,
+            options,
+            new EfCoreStorageEngine(() => new AppSettingsDbContext(
+                new DbContextOptionsBuilder<AppSettingsDbContext>().UseSqlite(options.ConnectionString).Options)),
+            logger)
     {
-        _provider = provider;
-        _options = options;
-        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -33,9 +50,23 @@ public sealed class ReloadBackgroundService : BackgroundService
 
         _logger.LogInformation("ReloadBackgroundService started. Interval: {Interval}", _options.ReloadInterval.Value);
 
+        // Initialize timestamp
+        var initialTimestamp = await _storageEngine.GetLastModifiedTimestampAsync(_options.Environment, stoppingToken);
+        if (initialTimestamp.HasValue)
+        {
+            _lastSeenTimestamp = initialTimestamp.Value;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(_options.ReloadInterval.Value, stoppingToken);
+            try
+            {
+                await Task.Delay(_options.ReloadInterval.Value, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
 
             try
             {
@@ -43,7 +74,7 @@ public sealed class ReloadBackgroundService : BackgroundService
 
                 if (hasChanges)
                 {
-                    _logger.LogInformation("Configuration changes detected. Reloading...");
+                    _logger.LogInformation("Configuration changes detected via timestamp. Reloading...");
                     await _provider.LoadAsync(stoppingToken);
                     _provider.TriggerReload();
                     _logger.LogInformation("Configuration reloaded successfully.");
@@ -62,35 +93,16 @@ public sealed class ReloadBackgroundService : BackgroundService
 
     private async Task<bool> DetectChangesAsync(CancellationToken ct)
     {
-        var dbContextOptions = new DbContextOptionsBuilder<AppSettingsDbContext>()
-            .UseSqlite(_options.ConnectionString)
-            .Options;
-
-        await using var dbContext = new AppSettingsDbContext(dbContextOptions);
-
-        var currentEntries = await dbContext.AppSettings
-            .Where(e => e.Environment == _options.Environment)
-            .Select(e => new { e.Key, e.Value })
-            .ToListAsync(ct);
-
-        var currentSnapshot = currentEntries.ToDictionary(
-            e => e.Key,
-            e => e.Value,
-            StringComparer.OrdinalIgnoreCase);
-
-        if (currentSnapshot.Count != _lastSnapshot.Count)
+        var latestTimestamp = await _storageEngine.GetLastModifiedTimestampAsync(_options.Environment, ct);
+        if (!latestTimestamp.HasValue)
         {
-            _lastSnapshot = currentSnapshot;
-            return true;
+            return false;
         }
 
-        foreach (var (key, value) in currentSnapshot)
+        if (_lastSeenTimestamp == DateTimeOffset.MinValue || latestTimestamp.Value > _lastSeenTimestamp)
         {
-            if (!_lastSnapshot.TryGetValue(key, out var lastValue) || lastValue != value)
-            {
-                _lastSnapshot = currentSnapshot;
-                return true;
-            }
+            _lastSeenTimestamp = latestTimestamp.Value;
+            return true;
         }
 
         return false;

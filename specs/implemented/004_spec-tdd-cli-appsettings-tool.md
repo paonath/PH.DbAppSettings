@@ -6,7 +6,7 @@ last_updated: "2026-08-21 10:44:00"
 tags: [tdd, dotnet, cli, json-import, json-analysis]
 git_commit: ""
 git_branch: "main"
-status: ready
+status: completed
 related_specs: ["specs/001_spec-tdd-key-normalization-and-options-binding.md", "specs/002_spec-tdd-storage-abstraction-and-multi-dialect-dapper.md", "specs/003_spec-tdd-efcore-modernization-and-reload-optimization.md"]
 supersedes: []
 source_purpose: "Create a CLI tool (PH.DbAppSettings.Cli) to analyze appsettings.json, detect sensitive keys, import entries into database tables across supported dialects, and export database configuration back to JSON."

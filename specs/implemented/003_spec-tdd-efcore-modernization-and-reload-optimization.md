@@ -6,7 +6,7 @@ last_updated: "2026-08-21 10:44:00"
 tags: [tdd, dotnet, efcore, reload-service, di-extensions]
 git_commit: ""
 git_branch: "main"
-status: ready
+status: completed
 related_specs: ["specs/001_spec-tdd-key-normalization-and-options-binding.md", "specs/002_spec-tdd-storage-abstraction-and-multi-dialect-dapper.md"]
 supersedes: []
 source_purpose: "Implement EfCoreStorageEngine adapter, modernize AppSettingEntry with UpdatedAt, refactor DbAppSettingsWriter and SeedService to use storage engine, optimize ReloadBackgroundService with timestamp polling, and provide fluent builder extensions."

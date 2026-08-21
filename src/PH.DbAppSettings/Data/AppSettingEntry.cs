@@ -6,4 +6,5 @@ public sealed class AppSettingEntry
     public string Environment { get; set; } = "Production";
     public string? Value { get; set; }
     public bool IsEncrypted { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

@@ -1,190 +1,205 @@
 # PH.DbAppSettings
 
-A .NET 10 library that reads configuration from `appsettings.json`, persists all key/value pairs to a database via Entity Framework Core, and exposes them as a native `IConfigurationProvider` — replacing `appsettings.json` in production.
+A high-performance .NET 10 library that persists configuration settings in relational databases using either **Entity Framework Core 10** or **Dapper**, exposing them as a native `IConfigurationProvider` to seamlessly replace `appsettings.json` in production with full support for `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`.
 
-## Why
+## Key Features
 
-In production environments, `appsettings.json` is a risk vector: it contains secrets in plain text, is not securely versioned, and does not support hot updates without redeployment. Centralizing configuration in a database enables:
+- **Dual Engine Architecture**: Choose between **Entity Framework Core 10** and ultra-fast **Dapper** micro-ORM in the same library.
+- **Multi-Dialect Database Support**: Works natively with **SQL Server**, **PostgreSQL**, **SQLite**, and **MySQL / MariaDB**.
+- **Native Options Binding**: Normalized `:` keys in memory ensure standard `services.Configure<TOptions>(config.GetSection("..."))` and `IOptionsMonitor<T>` work without friction.
+- **$O(1)$ Timestamp Reload**: Remote change detection queries `MAX(UpdatedAt)` instead of expensive full table scans.
+- **CLI Tool (`dbappsettings`)**: Standalone CLI to analyze `appsettings.json`, detect sensitive credentials, import into SQL tables, and export back to structured JSON.
+- **At-Rest Encryption**: Optional AES-GCM 256-bit authenticated encryption for sensitive configuration values.
 
-- Updating settings without redeployment
-- Separation of code and configuration
-- Optional encryption of sensitive values at rest
+---
 
 ## Installation
 
-```xml
-<PackageReference Include="PH.DbAppSettings" Version="1.0.0" />
-```
-
-## Minimum Required Configuration
-
-The **only** configuration that must remain outside the database is the connection string to the configuration database itself.
-
-```json
-// appsettings.json — only the connection string is needed
-{
-  "DbAppSettings": {
-    "ConnectionString": "Data Source=appconfig.db"
-  }
-}
-```
-
-In production, use **exclusively** the environment variable — no `appsettings.json` needed:
-
 ```bash
-export DbAppSettings__ConnectionString="Server=...;Database=AppConfig;..."
+# Core Library
+dotnet add package PH.DbAppSettings
+
+# Global CLI Tool
+dotnet tool install --global PH.DbAppSettings.Cli
 ```
 
-## Usage in Program.cs
+---
+
+## Quick Start (Program.cs)
+
+### 1. Using Dapper (Recommended for lightweight, high-performance setups)
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Bootstrap config: reads only the connection string
+// Bootstrap config (reads DB connection string from env var or bootstrap appsettings.json)
 var bootstrapConfig = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .AddJsonFile("appsettings.json", optional: true)
     .Build();
 
-// 2. Add DbAppSettings as the main configuration provider
+// Add DbAppSettings provider with Dapper engine
 builder.Configuration.AddDbAppSettings(bootstrapConfig, options =>
 {
+    options.UseDapperSqlite("Data Source=appconfig.db");
+    // Or for SQL Server / PostgreSQL / MySQL:
+    // options.UseDapper(() => new SqlConnection(connString), new SqlServerDialect());
+    
     options.AutoMigrate = true;
     options.SeedOnEmpty = true;
-    options.ExcludeKeysFromSeed = ["DbAppSettings__ConnectionString"];
-    options.ReloadInterval = TimeSpan.FromMinutes(5);
+    options.ReloadInterval = TimeSpan.FromSeconds(30);
 });
 
-// 3. Register DI services (writer, seed service, background reload)
-builder.Services.AddDbAppSettingsServices(/* your options */);
+// Register DI services
+builder.Services.AddDbAppSettingsServices(options =>
+{
+    options.UseDapperSqlite("Data Source=appconfig.db");
+    options.ReloadInterval = TimeSpan.FromSeconds(30);
+});
 
-// 4. From here on, IConfiguration reads from DB
-builder.Services.Configure<MyOptions>(builder.Configuration.GetSection("MyApp"));
+// Standard Microsoft Options binding works out-of-the-box!
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<FeatureFlags>(builder.Configuration.GetSection("Features"));
 ```
+
+### 2. Using Entity Framework Core
+
+```csharp
+builder.Configuration.AddDbAppSettings(bootstrapConfig, options =>
+{
+    options.UseEntityFrameworkSqlite("Data Source=appconfig.db");
+    // Or with custom DbContext options:
+    // options.UseEntityFramework(b => b.UseSqlServer(connString));
+    
+    options.AutoMigrate = true;
+    options.SeedOnEmpty = true;
+    options.ReloadInterval = TimeSpan.FromMinutes(1);
+});
+```
+
+---
+
+## CLI Tool Usage (`dbappsettings`)
+
+The CLI tool allows inspecting, importing, and exporting `appsettings.json` files directly from the command line:
+
+### 1. Analyze `appsettings.json`
+
+Analyzes local JSON configuration files, displays flattened key paths, value types, and flags sensitive properties (passwords, connection strings, secrets, tokens):
+
+```bash
+dbappsettings analyze appsettings.json --detailed
+```
+
+### 2. Import into Database
+
+Imports all flattened settings from an `appsettings.json` file into the target database table with automatic schema creation:
+
+```bash
+# SQLite
+dbappsettings import appsettings.json -c "Data Source=appconfig.db" -d sqlite -e Production
+
+# SQL Server with encryption for sensitive keys
+dbappsettings import appsettings.json -c "Server=localhost;Database=ConfigDb;User Id=sa;Password=secret;" -d sqlserver -e Production --encrypt-secret "my-32-char-secret-key-12345678"
+
+# PostgreSQL
+dbappsettings import appsettings.json -c "Host=localhost;Database=configdb;Username=postgres;Password=secret" -d postgres -e Production
+```
+
+### 3. Export Database to JSON
+
+Queries the database configuration table for a specific environment and reconstructs structured, indented JSON:
+
+```bash
+dbappsettings export -c "Data Source=appconfig.db" -d sqlite -e Production -o appsettings.Production.json
+```
+
+---
 
 ## Options Reference (`DbAppSettingsMutableOptions`)
 
-| Property | Type | Default | Description |
+| Property / Method | Type | Default | Description |
 |---|---|---|---|
-| `ConnectionString` | `string` | **required** | Connection string to the configuration DB |
+| `ConnectionString` | `string` | `null` | Connection string to the configuration database |
 | `Environment` | `string` | `"Production"` | Environment name (matches `ASPNETCORE_ENVIRONMENT`) |
-| `AutoMigrate` | `bool` | `true` | Automatically apply EF migrations on startup |
-| `SeedOnEmpty` | `bool` | `true` | Seed from `appsettings.json` if DB is empty |
-| `ForceReseed` | `bool` | `false` | Force re-seed, overwriting existing DB values |
-| `ExcludeKeysFromSeed` | `IReadOnlyList<string>` | `[]` | Keys to exclude from seeding |
-| `EncryptValues` | `bool` | `false` | Enable AES-GCM encryption of values at rest |
-| `ReloadInterval` | `TimeSpan?` | `null` | Auto-reload interval (null = disabled) |
-| `SchemaName` | `string` | `"dbo"` | DB schema name |
-| `TableName` | `string` | `"AppSettings"` | DB table name |
+| `UseDapper(...)` | `method` | - | Configures Dapper engine with connection factory & SQL dialect |
+| `UseDapperSqlite(...)` | `method` | - | Configures Dapper engine for SQLite |
+| `UseEntityFramework(...)` | `method` | - | Configures Entity Framework Core engine |
+| `UseEntityFrameworkSqlite(...)`| `method` | - | Configures Entity Framework Core engine for SQLite |
+| `AutoMigrate` | `bool` | `true` | Creates table schema automatically on startup if missing |
+| `SeedOnEmpty` | `bool` | `true` | Seeds initial settings from bootstrap config if table is empty |
+| `ForceReseed` | `bool` | `false` | Overwrites existing database entries during seed |
+| `ExcludeKeysFromSeed` | `IReadOnlyList<string>` | `[]` | List of keys to exclude from initial database seeding |
+| `EncryptValues` | `bool` | `false` | Enables AES-GCM 256-bit value encryption |
+| `ReloadInterval` | `TimeSpan?` | `null` | Polling interval for $O(1)$ timestamp change detection |
+| `SchemaName` | `string` | `"dbo"` | Schema name for the configuration table |
+| `TableName` | `string` | `"AppSettings"` | Name of the configuration table |
 
-## Key Format
-
-Configuration keys follow the same notation as .NET environment variables, using double underscore `__` as the hierarchy separator:
-
-| `appsettings.json` path | DB key |
-|---|---|
-| `ConnectionStrings:Default` | `ConnectionStrings__Default` |
-| `Logging:LogLevel:Default` | `Logging__LogLevel__Default` |
-| `MyApp:FeatureFlags:EnableCache` | `MyApp__FeatureFlags__EnableCache` |
-| `AllowedHosts:0` | `AllowedHosts__0` |
+---
 
 ## Database Schema
 
 ```sql
 CREATE TABLE AppSettings (
-    [Key]       NVARCHAR(512)   NOT NULL,
-    Environment NVARCHAR(64)    NOT NULL DEFAULT 'Production',
-    [Value]     NVARCHAR(4000)  NULL,
-    IsEncrypted BIT             NOT NULL DEFAULT 0,
-    CONSTRAINT PK_AppSettings PRIMARY KEY ([Key], Environment)
+    [Key]          NVARCHAR(512)      NOT NULL,
+    [Environment]  NVARCHAR(64)       NOT NULL DEFAULT 'Production',
+    [Value]        NVARCHAR(MAX)      NULL,
+    [IsEncrypted]  BIT                NOT NULL DEFAULT 0,
+    [UpdatedAt]    DATETIMEOFFSET     NOT NULL DEFAULT SYSDATETIMEOFFSET(),
+    CONSTRAINT PK_AppSettings PRIMARY KEY ([Key], [Environment])
 );
 ```
 
-## Usage Scenarios
+---
 
-### Scenario A — First boot in production
+## Runtime Writer API
 
-1. Operator sets `DbAppSettings__ConnectionString` as an env var in the container.
-2. Application starts, EF applies migrations, `AppSettings` table is created.
-3. DB is empty → `SeedService` reads `appsettings.json` (if present) and current env vars.
-4. All keys are saved to DB (excluding the bootstrap connection string).
-5. `DbAppSettingsProvider` loads from DB and populates `IConfiguration`.
-6. Application is operational. `appsettings.json` can be removed from the Docker image.
-
-### Scenario B — Update a value without redeployment
-
-1. An operator updates a row directly in the DB (or via a panel using `IDbAppSettingsWriter`).
-2. When `ReloadInterval` expires, `ReloadBackgroundService` detects the change.
-3. `provider.Load()` reloads values; `IOptionsMonitor<T>` notifies consumers.
-4. No redeployment needed.
-
-### Scenario C — Local development
-
-1. Developer keeps `appsettings.Development.json` with all values.
-2. `SeedOnEmpty = true` populates the local DB (SQLite) on first startup.
-3. The flow is identical to production, ensuring behavioral parity.
-
-## Runtime Write API
+Inject `IDbAppSettingsWriter` to dynamically update or delete configuration entries at runtime:
 
 ```csharp
 public interface IDbAppSettingsWriter
 {
     Task SetAsync(string key, string? value, CancellationToken ct = default);
+    Task SetAsync<T>(string key, T value, CancellationToken ct = default);
     Task DeleteAsync(string key, CancellationToken ct = default);
 }
 ```
 
-Inject `IDbAppSettingsWriter` to update or delete configuration values at runtime.
+Updating a key updates `UpdatedAt` immediately, prompting other nodes to reload automatically when their `ReloadInterval` elapses.
 
-## Encryption
-
-When `EncryptValues = true`, values are encrypted using AES-GCM 256-bit before storage. Set the encryption secret via environment variable:
-
-```bash
-export DbAppSettings__EncryptionSecret="your-strong-secret"
-```
-
-## Security
-
-| Aspect | Solution |
-|---|---|
-| Connection string in production | Only via env var, never in files |
-| Sensitive values in DB | `IsEncrypted` column, AES-GCM encryption via `IValueEncryptor` |
-| DB access | DB user with minimal permissions (`SELECT`, `INSERT`, `UPDATE` on `AppSettings` only) |
-| Injection | All access via EF with parameterized queries |
+---
 
 ## Project Structure
 
 ```
 PH.DbAppSettings/
 ├── src/
-│   └── PH.DbAppSettings/
-│       ├── Configuration/
-│       │   ├── DbAppSettingsConfigurationSource.cs
-│       │   └── DbAppSettingsProvider.cs
-│       ├── Data/
-│       │   ├── AppSettingEntry.cs
-│       │   ├── AppSettingEntryConfiguration.cs
-│       │   ├── AppSettingsDbContext.cs
-│       │   ├── AppSettingsDbContextFactory.cs
-│       │   └── Migrations/
-│       ├── Encryption/
-│       │   ├── IValueEncryptor.cs
-│       │   └── AesGcmValueEncryptor.cs
-│       ├── Services/
-│       │   ├── IDbAppSettingsWriter.cs
-│       │   ├── DbAppSettingsWriter.cs
-│       │   ├── SeedService.cs
-│       │   └── ReloadBackgroundService.cs
-│       ├── DbAppSettingsOptions.cs
-│       ├── DbAppSettingsMutableOptions.cs
-│       └── DbAppSettingsExtensions.cs
-└── tests/
-    └── PH.DbAppSettings.Tests/
-        ├── EncryptionTests.cs
-        ├── KeyNormalizationTests.cs
-        ├── SeedServiceTests.cs
-        ├── DbAppSettingsProviderTests.cs
-        └── IntegrationTests/
-            └── BootstrapIntegrationTests.cs
+│   ├── PH.DbAppSettings/              # Core library
+│   │   ├── Configuration/             # Provider, source, KeyNormalizer
+│   │   ├── Storage/                   # Storage engine abstractions, Dapper, EF Core, dialects
+│   │   │   └── Dialects/              # SqlServer, PostgreSql, Sqlite, MySql dialects
+│   │   ├── Data/                      # AppSettingsDbContext, AppSettingEntry
+│   │   ├── Encryption/                # IValueEncryptor, AesGcmValueEncryptor
+│   │   ├── Services/                  # Writer, SeedService, ReloadBackgroundService
+│   │   ├── DbAppSettingsOptions.cs
+│   │   ├── DbAppSettingsMutableOptions.cs
+│   │   └── DbAppSettingsExtensions.cs
+│   └── PH.DbAppSettings.Cli/          # Global CLI tool (dbappsettings)
+│       ├── Commands/                  # AnalyzeCommand, ImportCommand, ExportCommand
+│       ├── Models/                    # FlattenedSettingItem, AppSettingsAnalysisResult
+│       ├── Services/                  # AppSettingsJsonAnalyzer, StorageEngineFactory
+│       └── Program.cs
+├── tests/
+│   └── PH.DbAppSettings.Tests/        # 84 unit & integration tests (100% green)
+│       ├── KeyNormalizerTests.cs
+│       ├── NativeOptionsBindingTests.cs
+│       ├── SqlDialectTests.cs
+│       ├── DapperStorageEngineTests.cs
+│       ├── EfCoreStorageEngineTests.cs
+│       ├── TimestampReloadTests.cs
+│       ├── AppSettingsJsonAnalyzerTests.cs
+│       └── CliCommandTests.cs
+├── specs/                             # TDD specifications
+├── reasoning/                         # Analysis and reasoning trajectory
+└── AGENTS.md                          # Repository governance instructions
 ```

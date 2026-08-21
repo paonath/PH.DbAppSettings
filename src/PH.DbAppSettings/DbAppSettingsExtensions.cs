@@ -5,6 +5,7 @@ using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Encryption;
 using PH.DbAppSettings.Services;
+using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings;
 
@@ -63,10 +64,32 @@ public static class DbAppSettingsExtensions
         this IServiceCollection services,
         DbAppSettingsOptions options)
     {
-        services.AddDbContext<AppSettingsDbContext>(dbOpts =>
-            dbOpts.UseSqlite(options.ConnectionString));
-
         services.AddSingleton(options);
+
+        services.AddSingleton<IDbAppSettingsStorageEngine>(sp =>
+        {
+            if (options.StorageEngineFactory is not null)
+            {
+                return options.StorageEngineFactory();
+            }
+
+            return new EfCoreStorageEngine(() =>
+            {
+                var dbOpts = new DbContextOptionsBuilder<AppSettingsDbContext>()
+                    .UseSqlite(options.ConnectionString)
+                    .Options;
+                return new AppSettingsDbContext(dbOpts);
+            });
+        });
+
+        services.AddDbContext<AppSettingsDbContext>(dbOpts =>
+        {
+            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                dbOpts.UseSqlite(options.ConnectionString);
+            }
+        });
+
         services.AddScoped<IDbAppSettingsReader, DbAppSettingsReader>();
         services.AddScoped<IDbAppSettingsWriter, DbAppSettingsWriter>();
         services.AddTransient<SeedService>();

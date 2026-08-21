@@ -20,5 +20,9 @@ public sealed class DbAppSettingsConfigurationSource : IConfigurationSource
     }
 
     public IConfigurationProvider Build(IConfigurationBuilder builder)
-        => new DbAppSettingsProvider(_options, _bootstrapConfig, encryptor: _encryptor);
+        => new DbAppSettingsProvider(
+            _options,
+            _bootstrapConfig,
+            encryptor: _encryptor,
+            storageEngine: _options.StorageEngineFactory?.Invoke());
 }

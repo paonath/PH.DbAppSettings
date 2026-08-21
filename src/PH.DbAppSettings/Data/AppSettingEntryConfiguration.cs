@@ -36,5 +36,11 @@ public sealed class AppSettingEntryConfiguration : IEntityTypeConfiguration<AppS
         builder.Property(e => e.IsEncrypted)
             .IsRequired()
             .HasDefaultValue(false);
+
+        builder.Property(e => e.UpdatedAt)
+            .HasConversion(
+                v => v.HasValue ? v.Value.ToString("O") : null,
+                v => v != null ? DateTimeOffset.Parse(v) : null)
+            .IsRequired(false);
     }
 }

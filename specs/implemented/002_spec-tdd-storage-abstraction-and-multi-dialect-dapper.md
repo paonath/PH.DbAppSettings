@@ -6,7 +6,7 @@ last_updated: "2026-08-21 10:44:00"
 tags: [tdd, dotnet, storage, dapper, sql-dialects]
 git_commit: ""
 git_branch: "main"
-status: ready
+status: completed
 related_specs: ["specs/001_spec-tdd-key-normalization-and-options-binding.md"]
 supersedes: []
 source_purpose: "Implement IDbAppSettingsStorageEngine abstraction, AppSettingRecord with UpdatedAt timestamp, ISqlDialect generators for SQL Server, PostgreSQL, SQLite, MySQL, and DapperStorageEngine."

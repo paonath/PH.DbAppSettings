@@ -6,7 +6,7 @@ last_updated: "2026-08-21 10:44:00"
 tags: [governance, agentsmd, ai-guidelines]
 git_commit: ""
 git_branch: "main"
-status: ready
+status: completed
 related_specs: ["specs/001_spec-tdd-key-normalization-and-options-binding.md", "specs/002_spec-tdd-storage-abstraction-and-multi-dialect-dapper.md", "specs/003_spec-tdd-efcore-modernization-and-reload-optimization.md", "specs/004_spec-tdd-cli-appsettings-tool.md"]
 supersedes: []
 source_purpose: "Establish comprehensive AGENTS.md instructions for root repository, core library, CLI tool, and test projects to guide AI agents and developers."
