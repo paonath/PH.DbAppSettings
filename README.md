@@ -106,9 +106,25 @@ dbappsettings import appsettings.json -c "Server=localhost;Database=ConfigDb;Use
 dbappsettings import appsettings.json -c "Host=localhost;Database=configdb;Username=postgres;Password=secret" -d postgres -e Production
 ```
 
-### 3. Export Database to JSON
+### 3. Ingest and Delete Source `appsettings.json`
 
-Queries the database configuration table for a specific environment and reconstructs structured, indented JSON:
+Imports configuration entries into the target database table and safely deletes the source `appsettings.json` file upon confirmation (or immediately with `-y`/`--yes` for CI/CD pipelines and Docker containers):
+
+```bash
+dbappsettings ingest appsettings.json -c "Data Source=appconfig.db" -d sqlite -e Production -y
+```
+
+### 4. Reconstruct / Rewrite JSON from Database (`rewrite-json`)
+
+Queries configuration records from the database table and reconstructs a fully typed (preserving booleans, numbers, and arrays) `appsettings.json` configuration file:
+
+```bash
+dbappsettings rewrite-json -c "Data Source=appconfig.db" -d sqlite -e Production -o appsettings.json
+```
+
+### 5. Export Database to JSON
+
+Exports raw configuration entries from a database table into a formatted JSON output:
 
 ```bash
 dbappsettings export -c "Data Source=appconfig.db" -d sqlite -e Production -o appsettings.Production.json

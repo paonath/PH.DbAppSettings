@@ -19,8 +19,14 @@ public class Program
             config.AddCommand<ImportCommand>("import")
                 .WithDescription("Imports flattened settings from an appsettings.json file directly into a database table.");
 
+            config.AddCommand<IngestCommand>("ingest")
+                .WithDescription("Imports settings from appsettings.json into a database table and safely deletes the source file.");
+
             config.AddCommand<ExportCommand>("export")
                 .WithDescription("Exports configuration settings from a database table into a structured appsettings.json file.");
+
+            config.AddCommand<RewriteJsonCommand>("rewrite-json")
+                .WithDescription("Reconstructs a fully typed and array-structured appsettings.json configuration file from a database table.");
         });
 
         return await app.RunAsync(args);

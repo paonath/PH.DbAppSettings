@@ -16,11 +16,15 @@ Branch: feature/first_rel | Commit: 94810a1
 - Standalone CLI tool `PH.DbAppSettings.Cli` (`dbappsettings`) with commands:
   - `analyze`: Flattens and audits `appsettings.json`, detecting sensitive properties (passwords, connection strings, keys, secrets, tokens).
   - `import`: Imports flattened JSON configuration entries directly into database tables with automatic schema creation.
+  - `ingest`: Imports configuration entries into the database table and safely deletes the source `appsettings.json` file upon confirmation.
   - `export`: Exports database configuration back into structured, indented JSON files.
+  - `rewrite-json`: Reconstructs a fully typed and array-structured `appsettings.json` configuration file from the database.
+- Added `JsonTreeReconstructor` for reconstructing typed JSON trees (booleans, numbers, arrays) from flattened database records.
+- Added standalone application bootstrapping support allowing applications to run purely from database tables without local JSON files.
 - Added `KeyNormalizer` for bidirectional mapping between `:` (Microsoft Options standard) and `__` (database/environment safe delimiter).
 - Added `UpdatedAt` (`DateTimeOffset`) timestamp column tracking for $O(1)$ change detection.
 - Added fluent engine configuration helpers (`UseDapper`, `UseDapperSqlite`, `UseEntityFramework`, `UseEntityFrameworkSqlite`).
-- Comprehensive unit and integration test suite with 89 tests (100% green).
+- Comprehensive unit and integration test suite with 92 tests (100% green).
 - Repository and project-level governance `AGENTS.md` files for root, core library, CLI, and test projects.
 
 ### Changed
