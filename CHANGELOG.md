@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-08-21 UTC
-Branch: feature/first_rel | Commit: 35c556a
+Branch: feature/first_rel | Commit: bfc8aca
 
 ### Added
 - Dual storage engine architecture supporting both **Entity Framework Core 10** (`EfCoreStorageEngine`) and high-performance **Dapper** (`DapperStorageEngine`) in a single package.
