@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-08-24 UTC
-Branch: feature/first_rel
+Branch: feature/first_rel | Commit: 62dc510
 
 ### Added
 - Configured `PackageReadmeFile` and bundled repository root `README.md` directly into the generated NuGet package root (`PackagePath="\"`) for rich documentation rendering on NuGet.org.
