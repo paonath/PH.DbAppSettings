@@ -6,9 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-08-24 UTC
-Branch: feature/first_rel | Commit: 5a620cf
+Branch: feature/first_rel
 
 ### Added
+- Configured `PackageReadmeFile` and bundled repository root `README.md` directly into the generated NuGet package root (`PackagePath="\"`) for rich documentation rendering on NuGet.org.
+- Added complete NuGet package authoring metadata to `PH.DbAppSettings.csproj` (`Authors`, `Company`, `PackageLicenseExpression`, `PackageProjectUrl`, `RepositoryUrl`, `RepositoryType`, `PackageTags`, `PackageReleaseNotes`).
+- Configured SourceLink and symbol packaging (`IncludeSymbols`, `SymbolPackageFormat=snupkg`, `PublishRepositoryUrl`, `EmbedUntrackedSources`).
 - Embedded In-App CLI engine (`DbAppSettingsCliRunner`) in `PH.DbAppSettings.Cli` namespace inside the core package, providing `analyze`, `import`, `ingest` (`-y`), `export`, and `rewrite-json` subcommands without external tool dependencies.
 - Extension methods `app.RunDbAppSettingsCli(args)` and `serviceProvider.RunDbAppSettingsCli(args)` in `DbAppSettingsExtensions` for zero-configuration in-app command execution via `dotnet run -- dbappsettings <command>`.
 - MSBuild targets file `build/PH.DbAppSettings.targets` bundled in NuGet package supporting `dotnet build /t:DbAppSettings /p:DbAppSettingsArgs="..."`.
