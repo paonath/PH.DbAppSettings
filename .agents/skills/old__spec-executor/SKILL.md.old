@@ -1,0 +1,49 @@
+---
+name: spec-executor
+description: |
+  Executes a spec produced by spec-generator. Use when: (1) run a spec, (2) execute an execution plan, (3) update AGENTS.md with relevant project info discovered during execution.
+---
+
+## Hard Stops
+
+- **No spec attached** → stop. Ask: *"No spec attached. Please attach the spec file you want me to execute."*
+- **Spec needs modification** → stop. Ask: *"Do you want to A) only modify the spec, or B) modify the spec then execute it?"* Wait for reply.
+- Read **all** attached files and context in full before any other action.
+- Execute **only** the spec explicitly attached — never discover or queue additional specs.
+
+---
+
+## Execution Steps
+
+**1. Context Load**
+- Use TokenSave MCP tools (specifically `tokensave_search`, `tokensave_context`, or `tokensave_files`) to locate and analyze the codebases, files, and layers affected by the specification.
+- Read `AGENTS.md` in every project/folder involved.
+- Identify relevant skills, agents, and instructions for the plan's tasks.
+- If the specification, codebase files, or context are large (>150 lines), use `headroom_compress` to compress the inputs and keep the context window clean.
+
+**2. Execute Plan & Strict Scope Enforcement**
+- Execute each task in the `execution plan` section **in order**; do not skip or combine steps.
+- **CRITICAL RULE**: Ensure ONLY what is explicitly requested by the specification is implemented.
+- If additional integrations or deviations are necessary, invoke the `qa` skill with the human user immediately.
+- If run command outputs (such as builds, tests, or migration scripts) are verbose (>100 lines), use `headroom_compress` to compress logs before parsing error lists.
+
+**3. Orchestration & Subagent Delegation**
+- Act as an orchestrator of sub-agents delegated to implement the code.
+- Define and create `domain-expert` sub-agents specialized to optimally execute the spec (e.g., `dotnet-expert`, `angular-architect`, `usability-expert`).
+- Delegate independent tasks across subagents or stage dependent tasks.
+- **MANDATORY**: Sub-agents MUST converse with the `spec-executor` and validate the code BEFORE writing it.
+- Every subagent brief must include: instruction to use the `agent-self-learning` skill to record mistakes to `.agents/Lessons` and durable insights to `.agents/Memories`, and to return the required output contract:
+  ```
+  LessonsSuggested: <title>: <reason> | none
+  MemoriesSuggested: <title>: <reason> | none
+  ReasoningSummary: <rationale>
+  ```
+- Consolidate subagent outputs before marking the spec complete.
+
+**4. Q&A Gate**
+- Pause and invoke the `qa` skill when: task is ambiguous, a design decision is unresolved, a command fails unexpectedly, or continuing requires an irreversible action without clear intent.
+- Never guess or silently assume — always prefer Q&A over a wrong implementation.
+
+**5. Completion**
+- Update `AGENTS.md` only with relevant project info discovered during execution (conventions, commands, architectural decisions).
+- Use the `agent-self-learning` skill for any mistake corrected or durable insight found.
