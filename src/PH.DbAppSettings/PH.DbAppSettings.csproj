@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    
+    <!-- Package Identification & Authoring -->
+    <PackageId>PH.DbAppSettings</PackageId>
+    <Authors>Paolo Innocenti</Authors>
+    <Company>Paolo Innocenti</Company>
+    <Description>High-performance .NET 10 database configuration provider with embedded CLI tools supporting EF Core and Dapper across PostgreSQL, SQL Server, MySQL, and SQLite.</Description>
+    <PackageTags>configuration;database;efcore;dapper;appsettings;options;sqlserver;postgresql;sqlite;mysql;cli</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    
+    <!-- Links & Source Control -->
+    <PackageProjectUrl>https://github.com/paonath/PH.DbAppSettings</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/paonath/PH.DbAppSettings.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PackageReleaseNotes>See CHANGELOG.md for release history and details.</PackageReleaseNotes>
+    
+    <!-- Documentation & Readme -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    
+    <!-- Symbols -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PH.DbAppSettings.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Include root README.md directly into NuGet package root -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="build\PH.DbAppSettings.targets" Pack="true" PackagePath="build\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.*-*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*-*">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.*-*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*-*" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.*-*" />
+  </ItemGroup>
+
+</Project>
