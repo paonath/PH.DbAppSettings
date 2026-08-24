@@ -177,4 +177,34 @@ public static class DbAppSettingsExtensions
             services.AddHostedService(sp => sp.GetRequiredService<ReloadBackgroundService>());
         }
     }
+
+    /// <summary>
+    /// Intercepts execution if command-line arguments match DbAppSettings CLI commands.
+    /// Returns true if a CLI command was handled, prompting the host process to terminate.
+    /// </summary>
+    public static bool RunDbAppSettingsCli(this Microsoft.Extensions.Hosting.IHost host, string[] args)
+    {
+        return RunDbAppSettingsCli(host.Services, args);
+    }
+
+    /// <summary>
+    /// Intercepts execution if command-line arguments match DbAppSettings CLI commands using an IServiceProvider.
+    /// </summary>
+    public static bool RunDbAppSettingsCli(this IServiceProvider serviceProvider, string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return false;
+        }
+
+        var first = args[0];
+        if (!first.Equals(Cli.DbAppSettingsCliRunner.CliPrefix, StringComparison.OrdinalIgnoreCase) &&
+            !first.Equals($"--{Cli.DbAppSettingsCliRunner.CliPrefix}", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var exitCode = Cli.DbAppSettingsCliRunner.RunAsync(serviceProvider, args).GetAwaiter().GetResult();
+        return true;
+    }
 }

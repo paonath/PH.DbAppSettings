@@ -1,5 +1,5 @@
+using PH.DbAppSettings.Cli;
 using PH.DbAppSettings.Cli.Models;
-using PH.DbAppSettings.Cli.Services;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -26,10 +26,8 @@ public class AppSettingsJsonAnalyzerTests
             }
             """;
 
-        var analyzer = new AppSettingsJsonAnalyzer();
-
         // Act
-        var result = analyzer.Analyze(json);
+        var result = AppSettingsJsonAnalyzer.Analyze(json);
 
         // Assert
         Assert.NotNull(result);
@@ -74,10 +72,8 @@ public class AppSettingsJsonAnalyzerTests
             }
             """;
 
-        var analyzer = new AppSettingsJsonAnalyzer();
-
         // Act
-        var result = analyzer.Analyze(json);
+        var result = AppSettingsJsonAnalyzer.Analyze(json);
 
         // Assert
         Assert.Equal(5, result.TotalKeys);
@@ -98,10 +94,9 @@ public class AppSettingsJsonAnalyzerTests
     {
         // Arrange
         var json = "{}";
-        var analyzer = new AppSettingsJsonAnalyzer();
 
         // Act
-        var result = analyzer.Analyze(json);
+        var result = AppSettingsJsonAnalyzer.Analyze(json);
 
         // Assert
         Assert.NotNull(result);

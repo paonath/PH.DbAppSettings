@@ -1,0 +1,5 @@
+<Project>
+  <Target Name="DbAppSettings" DependsOnTargets="Build">
+    <Exec Command="dotnet &quot;$(TargetPath)&quot; dbappsettings $(DbAppSettingsArgs)" />
+  </Target>
+</Project>

@@ -55,6 +55,9 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// CLI command interceptor (executes subcommands like analyze, import, ingest, rewrite-json and exits if matched)
+if (app.RunDbAppSettingsCli(args)) return;
+
 if (app.Environment.IsDevelopment() || true)
 {
     app.MapOpenApi();

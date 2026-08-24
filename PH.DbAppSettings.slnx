@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PH.DbAppSettings/PH.DbAppSettings.csproj" />
-    <Project Path="src/PH.DbAppSettings.Cli/PH.DbAppSettings.Cli.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PH.DbAppSettings.Tests/PH.DbAppSettings.Tests.csproj" />

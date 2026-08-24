@@ -2,7 +2,7 @@ using System.Text.Json;
 using PH.DbAppSettings.Cli.Models;
 using PH.DbAppSettings.Configuration;
 
-namespace PH.DbAppSettings.Cli.Services;
+namespace PH.DbAppSettings.Cli;
 
 public sealed class AppSettingsJsonAnalyzer
 {
@@ -11,7 +11,11 @@ public sealed class AppSettingsJsonAnalyzer
         "Password", "Secret", "Key", "Token", "ConnectionString", "Cert", "Credential", "ApiKey"
     ];
 
-    public AppSettingsAnalysisResult Analyze(string jsonContent)
+    public static AppSettingsAnalysisResult Analyze(string jsonContent) => AnalyzeInternal(jsonContent);
+
+    public AppSettingsAnalysisResult AnalyzeJson(string jsonContent) => AnalyzeInternal(jsonContent);
+
+    private static AppSettingsAnalysisResult AnalyzeInternal(string jsonContent)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(jsonContent);
 
@@ -26,7 +30,7 @@ public sealed class AppSettingsJsonAnalyzer
         };
     }
 
-    private void TraverseElement(JsonElement element, string currentPath, List<FlattenedSettingItem> items)
+    private static void TraverseElement(JsonElement element, string currentPath, List<FlattenedSettingItem> items)
     {
         switch (element.ValueKind)
         {
@@ -72,7 +76,7 @@ public sealed class AppSettingsJsonAnalyzer
         }
     }
 
-    private void AddLeafItem(string rawKey, string? value, string valueType, List<FlattenedSettingItem> items)
+    private static void AddLeafItem(string rawKey, string? value, string valueType, List<FlattenedSettingItem> items)
     {
         if (string.IsNullOrWhiteSpace(rawKey)) return;
 

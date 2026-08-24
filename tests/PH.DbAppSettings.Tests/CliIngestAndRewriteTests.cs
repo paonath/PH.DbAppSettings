@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
-using PH.DbAppSettings.Cli.Commands;
+using Microsoft.Extensions.DependencyInjection;
+using PH.DbAppSettings.Cli;
 using PH.DbAppSettings.Storage;
 using PH.DbAppSettings.Storage.Dialects;
 
@@ -32,6 +33,14 @@ public class CliIngestAndRewriteTests : IDisposable
         }
     }
 
+    private IServiceProvider BuildServiceProvider(out IDbAppSettingsStorageEngine storageEngine)
+    {
+        var services = new ServiceCollection();
+        storageEngine = new DapperStorageEngine(() => new SqliteConnection(_connString), new SqliteDialect(), "", "AppSettings");
+        services.AddSingleton<IDbAppSettingsStorageEngine>(storageEngine);
+        return services.BuildServiceProvider();
+    }
+
     [Fact]
     public async Task IngestCommand_ImportsIntoDatabase_AndDeletesSourceFile()
     {
@@ -46,21 +55,11 @@ public class CliIngestAndRewriteTests : IDisposable
             }
             """);
 
-        var engine = new DapperStorageEngine(() => new SqliteConnection(_connString), new SqliteDialect(), "", "AppSettings");
+        var sp = BuildServiceProvider(out var engine);
         await engine.EnsureSchemaCreatedAsync();
 
-        var command = new IngestCommand();
-
         // Act: Run ingest command with automatic confirmation flag (-y)
-        var exitCode = await command.ExecuteAsync(new IngestCommandSettings
-        {
-            FilePath = jsonPath,
-            ConnectionString = _connString,
-            Dialect = "sqlite",
-            Environment = "Production",
-            AutoMigrate = true,
-            Yes = true
-        });
+        var exitCode = await DbAppSettingsCliRunner.RunAsync(sp, ["dbappsettings", "ingest", jsonPath, "-e", "Production", "-y"]);
 
         // Assert
         Assert.Equal(0, exitCode);
@@ -79,7 +78,7 @@ public class CliIngestAndRewriteTests : IDisposable
     public async Task RewriteJsonCommand_ReconstructsFormattedJson_WithTypesAndArrays()
     {
         // Arrange: Pre-populate database with string, number, boolean, and array keys
-        var engine = new DapperStorageEngine(() => new SqliteConnection(_connString), new SqliteDialect(), "", "AppSettings");
+        var sp = BuildServiceProvider(out var engine);
         await engine.EnsureSchemaCreatedAsync();
 
         await engine.UpsertBatchAsync(new List<AppSettingRecord>
@@ -92,16 +91,9 @@ public class CliIngestAndRewriteTests : IDisposable
         });
 
         var outJsonPath = Path.Combine(_tempDir, "appsettings.rewritten.json");
-        var command = new RewriteJsonCommand();
 
         // Act: Reconstruct JSON configuration file from SQL database
-        var exitCode = await command.ExecuteAsync(new RewriteJsonCommandSettings
-        {
-            OutputPath = outJsonPath,
-            ConnectionString = _connString,
-            Dialect = "sqlite",
-            Environment = "Production"
-        });
+        var exitCode = await DbAppSettingsCliRunner.RunAsync(sp, ["dbappsettings", "rewrite-json", outJsonPath, "-e", "Production"]);
 
         // Assert
         Assert.Equal(0, exitCode);

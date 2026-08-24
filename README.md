@@ -1,176 +1,354 @@
 # PH.DbAppSettings
 
-A high-performance .NET 10 library that persists configuration settings in relational databases using either **Entity Framework Core 10** or **Dapper**, exposing them as a native `IConfigurationProvider` to seamlessly replace `appsettings.json` in production with full support for `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`.
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests: 110 Passed](https://img.shields.io/badge/Tests-110%20Passed%20(100%25)-brightgreen.svg)](#testing--quality)
+
+A high-performance .NET 10 configuration provider library that replaces `appsettings.json` in production by persisting configuration settings in relational databases using either **Entity Framework Core 10** or **Dapper**, featuring a unified embedded In-App CLI engine and MSBuild targets in a single NuGet package.
+
+`PH.DbAppSettings` integrates directly into the Microsoft Configuration system as a native `ConfigurationProvider`, providing seamless support for `IOptions<T>`, `IOptionsSnapshot<T>`, `IOptionsMonitor<T>`, $O(1)$ timestamp change detection, AES-GCM 256-bit encryption at rest, and embedded CLI commands without secondary tool dependencies.
+
+---
 
 ## Key Features
 
-- **Dual Engine Architecture**: Choose between **Entity Framework Core 10** and ultra-fast **Dapper** micro-ORM in the same library.
-- **Multi-Dialect Database Support**: Works natively with **SQL Server**, **PostgreSQL**, **SQLite**, and **MySQL / MariaDB**.
-- **Native Options Binding**: Normalized `:` keys in memory ensure standard `services.Configure<TOptions>(config.GetSection("..."))` and `IOptionsMonitor<T>` work without friction.
-- **$O(1)$ Timestamp Reload**: Remote change detection queries `MAX(UpdatedAt)` instead of expensive full table scans.
-- **CLI Tool (`dbappsettings`)**: Standalone CLI to analyze `appsettings.json`, detect sensitive credentials, import into SQL tables, and export back to structured JSON.
-- **At-Rest Encryption**: Optional AES-GCM 256-bit authenticated encryption for sensitive configuration values.
+- **Single Package & Unified Codebase**: 100% of runtime configuration, storage engines, and CLI tools are packaged directly in `PH.DbAppSettings`.
+- **Co-located Application Database (EF Core 10)**: Inherit `AppSettingsDbContext<TContext>` directly in your application's `DbContext` to keep settings alongside your domain tables without separate databases or connection pools.
+- **Dual Engine Support**: Choose between **Entity Framework Core 10** and ultra-fast **Dapper** micro-ORM in the same assembly.
+- **Multi-Provider Relational Support**: Works out-of-the-box with **PostgreSQL** (`Npgsql`), **SQL Server** (`Microsoft.Data.SqlClient`), **MySQL / MariaDB** (`Pomelo`), and **SQLite**.
+- **Embedded In-App CLI Runner**: Run CLI commands directly via your application (`dotnet run -- dbappsettings ...` or `dotnet MyApp.dll dbappsettings ...`) with automatic detection of your database connection and dialect.
+- **Native Microsoft Options Binding**: Full compatibility with `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`. Keys are automatically normalized between `:` (Options standard) and `__` (database/environment standard).
+- **$O(1)$ Timestamp Change Detection**: Real-time configuration reloading is detected by querying `MAX(UpdatedAt)` on the database table instead of performing expensive full-table diffs.
+- **Design-Time Migrations**: Includes `AppSettingsDesignTimeDbContextFactory<TContext>` to streamline `dotnet ef migrations add` in host projects.
+- **At-Rest Encryption**: Optional authenticated AES-GCM 256-bit encryption for sensitive configuration values.
+
+---
+
+## Architecture Overview
+
+```mermaid
+flowchart TD
+    subgraph HostApp ["Host Application (ASP.NET Core / Worker Service)"]
+        Program["Program.cs / Bootstrap"]
+        Config["IConfigurationRoot"]
+        Options["IOptions<T> / IOptionsMonitor<T>"]
+        Writer["IDbAppSettingsWriter"]
+        CliHook["app.RunDbAppSettingsCli(args)"]
+    end
+
+    subgraph CoreLib ["PH.DbAppSettings (Single Assembly)"]
+        Provider["DbAppSettingsProvider"]
+        Engine["IDbAppSettingsStorageEngine"]
+        EFEngine["EfCoreStorageEngine"]
+        DapperEngine["DapperStorageEngine"]
+        Encryptor["AesGcmValueEncryptor"]
+        ReloadSvc["ReloadBackgroundService (Polls MAX(UpdatedAt))"]
+        CliRunner["DbAppSettingsCliRunner (analyze, import, ingest, export, rewrite-json)"]
+    end
+
+    subgraph Database ["Relational Database (PostgreSQL / SQL Server / MySQL / SQLite)"]
+        AppDB[("Unified Application Database")]
+        SettingsTable["dbo.AppSettings (Key, Environment, Value, IsEncrypted, UpdatedAt)"]
+        DomainTables["Domain Tables (Users, Orders, ...)"]
+    end
+
+    Program -->|"AddDbAppSettings<AppDbContext>()"| Provider
+    Program -->|"Intercepts CLI subcommands"| CliHook
+    CliHook -->|"Delegates"| CliRunner
+    CliRunner -->|"Reuses host storage engine"| Engine
+    Provider -->|"Loads Data"| Config
+    Config -->|"Binds"| Options
+    Writer -->|"Upsert / Delete"| Engine
+    ReloadSvc -->|"Change Detected"| Provider
+    
+    Engine --> EFEngine
+    Engine --> DapperEngine
+    
+    EFEngine -->|"AppDbContext : AppSettingsDbContext"| AppDB
+    DapperEngine -->|"ISqlDialect"| AppDB
+    
+    AppDB --- SettingsTable
+    AppDB --- DomainTables
+```
 
 ---
 
 ## Installation
 
-```bash
-# Core Library
-dotnet add package PH.DbAppSettings
+Install the single package into your project:
 
-# Global CLI Tool
-dotnet tool install --global PH.DbAppSettings.Cli
+```bash
+dotnet add package PH.DbAppSettings
 ```
 
 ---
 
-## Quick Start (Program.cs)
+## Quick Start & Usage
 
-### 1. Using Dapper (Recommended for lightweight, high-performance setups)
+### 1. Using Entity Framework Core 10 (Co-located Application Database)
+
+#### Step 1: Inherit `AppSettingsDbContext` in your application `DbContext`
 
 ```csharp
+using Microsoft.EntityFrameworkCore;
+using PH.DbAppSettings.Data;
+
+namespace MyApp.Data;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options) 
+    : AppSettingsDbContext<AppDbContext>(options)
+{
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Product> Products => Set<Product>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder); // Configures AppSettingEntry mapping
+        
+        // Your application entity configurations:
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    }
+}
+```
+
+#### Step 2: Configure `Program.cs` with In-App CLI Interceptor
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using MyApp.Data;
+using PH.DbAppSettings;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Bootstrap config (reads DB connection string from env var or bootstrap appsettings.json)
+// 1. Bootstrap config (reads DB connection string from env var or local appsettings.json)
 var bootstrapConfig = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .AddJsonFile("appsettings.json", optional: true)
     .Build();
 
-// Add DbAppSettings provider with Dapper engine
+var connectionString = bootstrapConfig.GetConnectionString("DefaultConnection") 
+    ?? "Host=localhost;Database=MyAppDb;Username=postgres;Password=secret;";
+
+// 2. Add DbAppSettings provider for EF Core
+builder.Configuration.AddDbAppSettings<AppDbContext>(bootstrapConfig, options =>
+{
+    options.ConnectionString = connectionString;
+    options.UseEntityFramework<AppDbContext>((opts, conn) => opts.UseNpgsql(conn));
+    
+    options.AutoMigrate = true;     // Ensures schema is initialized
+    options.UseMigrations = true;   // Executes context.Database.MigrateAsync()
+    options.SeedOnEmpty = true;     // Seeds settings from bootstrap config if table is empty
+    options.ReloadInterval = TimeSpan.FromSeconds(30); // Automatic $O(1)$ change detection
+});
+
+// 3. Register DbContext and DbAppSettings services in DI
+builder.Services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connectionString));
+
+builder.Services.AddDbAppSettingsServices<AppDbContext>(options =>
+{
+    options.UseEntityFramework<AppDbContext>((opts, conn) => opts.UseNpgsql(conn));
+    options.ReloadInterval = TimeSpan.FromSeconds(30);
+});
+
+// 4. Strongly typed Options binding
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<FeatureFlags>(builder.Configuration.GetSection("Features"));
+
+var app = builder.Build();
+
+// 5. In-App CLI interceptor (handles CLI commands when invoked via 'dotnet run -- dbappsettings ...')
+if (app.RunDbAppSettingsCli(args)) return;
+
+app.Run();
+```
+
+#### Step 3: Support EF Core Design-Time Migrations (`dotnet ef migrations`)
+
+Create a factory in your project inheriting `AppSettingsDesignTimeDbContextFactory<TContext>`:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using PH.DbAppSettings.Data;
+
+namespace MyApp.Data;
+
+public sealed class AppDbContextFactory : AppSettingsDesignTimeDbContextFactory<AppDbContext>
+{
+    protected override void ConfigureOptionsBuilder(
+        DbContextOptionsBuilder<AppDbContext> builder, 
+        string connectionString)
+    {
+        builder.UseNpgsql(connectionString);
+    }
+}
+```
+
+Now you can generate and apply migrations normally:
+```bash
+dotnet ef migrations add AddDbAppSettings --context AppDbContext
+dotnet ef database update --context AppDbContext
+```
+
+---
+
+### 2. Using Dapper (Lightweight Micro-ORM Setup)
+
+Ideal for microservices or background workers where an Entity Framework DbContext is not needed:
+
+```csharp
+using Npgsql;
+using PH.DbAppSettings;
+using PH.DbAppSettings.Storage.Dialects;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var bootstrapConfig = new ConfigurationBuilder()
+    .AddEnvironmentVariables()
+    .AddJsonFile("appsettings.json", optional: true)
+    .Build();
+
+var connectionString = bootstrapConfig.GetConnectionString("DefaultConnection")!;
+
 builder.Configuration.AddDbAppSettings(bootstrapConfig, options =>
 {
-    options.UseDapperSqlite("Data Source=appconfig.db");
-    // Or for SQL Server / PostgreSQL / MySQL:
-    // options.UseDapper(() => new SqlConnection(connString), new SqlServerDialect());
-    
+    options.ConnectionString = connectionString;
+    options.UseDapper(() => new NpgsqlConnection(connectionString), new PostgreSqlDialect());
     options.AutoMigrate = true;
     options.SeedOnEmpty = true;
     options.ReloadInterval = TimeSpan.FromSeconds(30);
 });
 
-// Register DI services
 builder.Services.AddDbAppSettingsServices(options =>
 {
-    options.UseDapperSqlite("Data Source=appconfig.db");
+    options.UseDapper(() => new NpgsqlConnection(connectionString), new PostgreSqlDialect());
     options.ReloadInterval = TimeSpan.FromSeconds(30);
 });
 
-// Standard Microsoft Options binding works out-of-the-box!
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-builder.Services.Configure<FeatureFlags>(builder.Configuration.GetSection("Features"));
-```
 
-### 2. Using Entity Framework Core (Co-located Application Database)
-
-Inherit `AppSettingsDbContext<AppDbContext>` in your application's `DbContext`:
-
-```csharp
-public class AppDbContext(DbContextOptions<AppDbContext> options) 
-    : AppSettingsDbContext<AppDbContext>(options)
-{
-    public DbSet<User> Users => Set<User>();
-}
-```
-
-Configure `PH.DbAppSettings` in `Program.cs` with your preferred provider (PostgreSQL, SQL Server, MySQL, SQLite):
-
-```csharp
-// PostgreSQL via Npgsql:
-builder.Configuration.AddDbAppSettings<AppDbContext>(bootstrapConfig, options =>
-{
-    options.UseEntityFramework<AppDbContext>((builder, connStr) => builder.UseNpgsql(connStr));
-    options.UseMigrations = true; // Runs context.Database.MigrateAsync()
-    options.ReloadInterval = TimeSpan.FromSeconds(30);
-});
-
-// Register AppDbContext and DbAppSettings in DI container:
-builder.Services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connectionString));
-builder.Services.AddDbAppSettingsServices<AppDbContext>(options =>
-{
-    options.UseEntityFramework<AppDbContext>((builder, connStr) => builder.UseNpgsql(connStr));
-    options.ReloadInterval = TimeSpan.FromSeconds(30);
-});
+var app = builder.Build();
+if (app.RunDbAppSettingsCli(args)) return;
+app.Run();
 ```
 
 ---
 
-## CLI Tool Usage (`dbappsettings`)
+## In-App CLI Tooling (`dbappsettings`)
 
-The CLI tool allows inspecting, importing, and exporting `appsettings.json` files directly from the command line:
+With `PH.DbAppSettings`, you do not need to install an external CLI tool. You can run commands directly through your application. The CLI automatically utilizes your application's configured database engine, connection string, and dialect!
 
 ### 1. Analyze `appsettings.json`
-
-Analyzes local JSON configuration files, displays flattened key paths, value types, and flags sensitive properties (passwords, connection strings, secrets, tokens):
-
+Scans JSON configuration files, displays flattened key hierarchies and value types, and flags sensitive properties (passwords, connection strings, API keys, secrets, tokens):
 ```bash
-dbappsettings analyze appsettings.json --detailed
+dotnet run -- dbappsettings analyze appsettings.json
 ```
 
 ### 2. Import into Database
-
 Imports all flattened settings from an `appsettings.json` file into the target database table with automatic schema creation:
-
 ```bash
-# SQLite
-dbappsettings import appsettings.json -c "Data Source=appconfig.db" -d sqlite -e Production
-
-# SQL Server with encryption for sensitive keys
-dbappsettings import appsettings.json -c "Server=localhost;Database=ConfigDb;User Id=sa;Password=secret;" -d sqlserver -e Production --encrypt-secret "my-32-char-secret-key-12345678"
-
-# PostgreSQL
-dbappsettings import appsettings.json -c "Host=localhost;Database=configdb;Username=postgres;Password=secret" -d postgres -e Production
+dotnet run -- dbappsettings import appsettings.json -e Production
 ```
 
 ### 3. Ingest and Delete Source `appsettings.json`
-
-Imports configuration entries into the target database table and safely deletes the source `appsettings.json` file upon confirmation (or immediately with `-y`/`--yes` for CI/CD pipelines and Docker containers):
-
+Imports settings into the database and safely deletes the source `appsettings.json` file to prevent credentials from lingering in production containers:
 ```bash
-dbappsettings ingest appsettings.json -c "Data Source=appconfig.db" -d sqlite -e Production -y
+dotnet run -- dbappsettings ingest appsettings.json -e Production -y
 ```
 
-### 4. Reconstruct / Rewrite JSON from Database (`rewrite-json`)
-
-Queries configuration records from the database table and reconstructs a fully typed (preserving booleans, numbers, and arrays) `appsettings.json` configuration file:
-
+### 4. Reconstruct / Rewrite JSON (`rewrite-json`)
+Queries records from the database and reconstructs a fully typed (preserving booleans, numbers, arrays, and nested objects) `appsettings.json` file:
 ```bash
-dbappsettings rewrite-json -c "Data Source=appconfig.db" -d sqlite -e Production -o appsettings.json
+dotnet run -- dbappsettings rewrite-json appsettings.json -e Production
 ```
 
 ### 5. Export Database to JSON
-
-Exports raw configuration entries from a database table into a formatted JSON output:
-
+Exports raw database entries into a JSON file:
 ```bash
-dbappsettings export -c "Data Source=appconfig.db" -d sqlite -e Production -o appsettings.Production.json
+dotnet run -- dbappsettings export appsettings.exported.json -e Production
+```
+
+### MSBuild Target Invocations
+You can also run CLI tasks via MSBuild:
+```bash
+dotnet build /t:DbAppSettings /p:DbAppSettingsArgs="analyze appsettings.json"
 ```
 
 ---
 
-## Options Reference (`DbAppSettingsMutableOptions`)
+## Microsoft Options Binding & Key Normalization
 
-| Property / Method | Type | Default | Description |
-|---|---|---|---|
-| `ConnectionString` | `string` | `null` | Connection string to the configuration database |
-| `Environment` | `string` | `"Production"` | Environment name (matches `ASPNETCORE_ENVIRONMENT`) |
-| `UseDapper(...)` | `method` | - | Configures Dapper engine with connection factory & SQL dialect |
-| `UseDapperSqlite(...)` | `method` | - | Configures Dapper engine for SQLite |
-| `UseEntityFramework(...)` | `method` | - | Configures Entity Framework Core engine |
-| `UseEntityFrameworkSqlite(...)`| `method` | - | Configures Entity Framework Core engine for SQLite |
-| `AutoMigrate` | `bool` | `true` | Creates table schema automatically on startup if missing |
-| `SeedOnEmpty` | `bool` | `true` | Seeds initial settings from bootstrap config if table is empty |
-| `ForceReseed` | `bool` | `false` | Overwrites existing database entries during seed |
-| `ExcludeKeysFromSeed` | `IReadOnlyList<string>` | `[]` | List of keys to exclude from initial database seeding |
-| `EncryptValues` | `bool` | `false` | Enables AES-GCM 256-bit value encryption |
-| `ReloadInterval` | `TimeSpan?` | `null` | Polling interval for $O(1)$ timestamp change detection |
-| `SchemaName` | `string` | `"dbo"` | Schema name for the configuration table |
-| `TableName` | `string` | `"AppSettings"` | Name of the configuration table |
+Keys stored in the database can use `:` or `__` interchangeably. When loaded into `IConfigurationProvider.Data`, keys are always normalized to `:` delimiter.
+
+This guarantees that standard Microsoft options patterns work seamlessly:
+
+```csharp
+// 1. Static options (at startup)
+public class EmailService(IOptions<SmtpOptions> options)
+{
+    private readonly SmtpOptions _options = options.Value;
+}
+
+// 2. Scoped snapshot options (per-request)
+public class NotificationService(IOptionsSnapshot<SmtpOptions> options)
+{
+    private readonly SmtpOptions _options = options.Value;
+}
+
+// 3. Dynamic options monitor (receives real-time updates when database changes)
+public class FeatureManager(IOptionsMonitor<FeatureFlags> monitor)
+{
+    public bool IsCacheEnabled => monitor.CurrentValue.EnableCache;
+}
+```
 
 ---
 
-## Database Schema
+## Runtime Writer API
+
+Inject `IDbAppSettingsWriter` to mutate or remove configuration entries at runtime:
+
+```csharp
+app.MapPost("/api/settings/feature", async (
+    [FromBody] UpdateFeatureRequest req, 
+    IDbAppSettingsWriter writer) =>
+{
+    await writer.SetAsync("Features:EnableCache", req.EnableCache);
+    return Results.Ok();
+});
+
+app.MapDelete("/api/settings/{key}", async (
+    string key, 
+    IDbAppSettingsWriter writer) =>
+{
+    await writer.DeleteAsync(key);
+    return Results.Ok();
+});
+```
+
+---
+
+## Configuration Options Reference
+
+| Property / Method | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `ConnectionString` | `string?` | `null` | Relational database connection string. |
+| `Environment` | `string` | `"Production"` | Target environment name (matches `ASPNETCORE_ENVIRONMENT`). |
+| `AutoMigrate` | `bool` | `true` | Automatically initializes or migrates the database schema on startup. |
+| `UseMigrations` | `bool` | `false` | When `true`, calls `context.Database.MigrateAsync()`; when `false`, calls `EnsureCreatedAsync()`. |
+| `SeedOnEmpty` | `bool` | `true` | Seeds configuration from bootstrap config when the database table is empty. |
+| `ForceReseed` | `bool` | `false` | Overwrites existing database entries with values from bootstrap config. |
+| `ExcludeKeysFromSeed` | `IReadOnlyList<string>` | `[]` | List of keys excluded from database seeding. |
+| `EncryptValues` | `bool` | `false` | Enables AES-GCM 256-bit encryption for values stored in the database. |
+| `ReloadInterval` | `TimeSpan?` | `null` | Polling interval for $O(1)$ `MAX(UpdatedAt)` change detection (`null` = disabled). |
+| `SchemaName` | `string` | `"dbo"` | Database schema name for the configuration table. |
+| `TableName` | `string` | `"AppSettings"` | Database table name. |
+| `UseEntityFramework<TContext>(...)` | `method` | - | Configures EF Core engine for derived context `TContext : AppSettingsDbContext`. |
+| `UseDapper(...)` | `method` | - | Configures Dapper engine with connection factory delegate and `ISqlDialect`. |
+| `UseDapperSqlite(connStr)` | `method` | - | Configures Dapper engine for SQLite. |
+
+---
+
+## Database Table Schema
 
 ```sql
 CREATE TABLE AppSettings (
@@ -185,54 +363,51 @@ CREATE TABLE AppSettings (
 
 ---
 
-## Runtime Writer API
-
-Inject `IDbAppSettingsWriter` to dynamically update or delete configuration entries at runtime:
-
-```csharp
-public interface IDbAppSettingsWriter
-{
-    Task SetAsync(string key, string? value, CancellationToken ct = default);
-    Task SetAsync<T>(string key, T value, CancellationToken ct = default);
-    Task DeleteAsync(string key, CancellationToken ct = default);
-}
-```
-
-Updating a key updates `UpdatedAt` immediately, prompting other nodes to reload automatically when their `ReloadInterval` elapses.
-
----
-
-## Project Structure
+## Solution Structure
 
 ```
 PH.DbAppSettings/
 ├── src/
-│   ├── PH.DbAppSettings/              # Core library
-│   │   ├── Configuration/             # Provider, source, KeyNormalizer
-│   │   ├── Storage/                   # Storage engine abstractions, Dapper, EF Core, dialects
-│   │   │   └── Dialects/              # SqlServer, PostgreSql, Sqlite, MySql dialects
-│   │   ├── Data/                      # AppSettingsDbContext, AppSettingEntry
-│   │   ├── Encryption/                # IValueEncryptor, AesGcmValueEncryptor
-│   │   ├── Services/                  # Writer, SeedService, ReloadBackgroundService
-│   │   ├── DbAppSettingsOptions.cs
-│   │   ├── DbAppSettingsMutableOptions.cs
-│   │   └── DbAppSettingsExtensions.cs
-│   └── PH.DbAppSettings.Cli/          # Global CLI tool (dbappsettings)
-│       ├── Commands/                  # AnalyzeCommand, ImportCommand, ExportCommand
-│       ├── Models/                    # FlattenedSettingItem, AppSettingsAnalysisResult
-│       ├── Services/                  # AppSettingsJsonAnalyzer, StorageEngineFactory
-│       └── Program.cs
+│   └── PH.DbAppSettings/              # Unified Core Library + In-App CLI Engine
+│       ├── Configuration/             # Provider, configuration source, KeyNormalizer
+│       ├── Storage/                   # IDbAppSettingsStorageEngine, EF Core, Dapper, Dialects
+│       │   └── Dialects/              # SqlServer, PostgreSql, MySql, Sqlite dialects
+│       ├── Data/                      # AppSettingsDbContext (abstract), DesignTimeFactory
+│       ├── Encryption/                # IValueEncryptor, AesGcmValueEncryptor (AES-GCM 256-bit)
+│       ├── Services/                  # Writer, SeedService, ReloadBackgroundService
+│       ├── Cli/                       # Unified CLI Runner, JsonAnalyzer, TreeReconstructor
+│       ├── build/                     # MSBuild targets (PH.DbAppSettings.targets)
+│       ├── DbAppSettingsOptions.cs
+│       ├── DbAppSettingsMutableOptions.cs
+│       └── DbAppSettingsExtensions.cs
+├── examples/
+│   └── PH.DbAppSettings.Example.MinimalApi/ # Reference implementation with EF Core & Scalar OpenAPI
 ├── tests/
-│   └── PH.DbAppSettings.Tests/        # 84 unit & integration tests (100% green)
-│       ├── KeyNormalizerTests.cs
-│       ├── NativeOptionsBindingTests.cs
-│       ├── SqlDialectTests.cs
-│       ├── DapperStorageEngineTests.cs
-│       ├── EfCoreStorageEngineTests.cs
-│       ├── TimestampReloadTests.cs
-│       ├── AppSettingsJsonAnalyzerTests.cs
-│       └── CliCommandTests.cs
-├── specs/                             # TDD specifications
-├── reasoning/                         # Analysis and reasoning trajectory
+│   └── PH.DbAppSettings.Tests/        # 110 unit and integration tests (100% green)
+├── specs/                             # Formal TDD specifications
+├── reasoning/                         # Architecture analysis and decision records
 └── AGENTS.md                          # Repository governance instructions
 ```
+
+---
+
+## Testing & Quality
+
+All changes in `PH.DbAppSettings` strictly adhere to Test-Driven Development (TDD).
+
+```bash
+# Build solution
+dotnet build PH.DbAppSettings.slnx
+
+# Run all 110 unit & integration tests
+dotnet test PH.DbAppSettings.slnx
+
+# Check code format
+dotnet format PH.DbAppSettings.slnx --verify-no-changes
+```
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

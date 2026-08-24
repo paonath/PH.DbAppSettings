@@ -2,7 +2,7 @@
 
 ## Project Scope
 
-Core library containing the Microsoft Configuration Provider implementation, storage engine adapters, encryption mechanisms, and background reload services.
+Core library containing the Microsoft Configuration Provider implementation, storage engine adapters, encryption mechanisms, background reload services, and unified CLI engine.
 
 ## Component Layout & Responsibilities
 
@@ -21,6 +21,10 @@ Core library containing the Microsoft Configuration Provider implementation, sto
   - [AppSettingsDesignTimeDbContextFactory](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingsDesignTimeDbContextFactory.cs): Abstract base class implementing `IDesignTimeDbContextFactory<TContext>` for host application migration tooling.
   - [AppSettingEntry](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingEntry.cs): Entity model.
   - [AppSettingEntryConfiguration](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingEntryConfiguration.cs): Fluent mapping configuration with ISO-8601 string value conversion for `UpdatedAt`.
+- **`Cli/`**:
+  - [DbAppSettingsCliRunner](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Cli/DbAppSettingsCliRunner.cs): In-app CLI dispatcher supporting `analyze`, `import`, `ingest`, `export`, and `rewrite-json`.
+  - [AppSettingsJsonAnalyzer](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Cli/AppSettingsJsonAnalyzer.cs): JSON flattening and sensitivity auditor.
+  - [JsonTreeReconstructor](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Cli/JsonTreeReconstructor.cs): Reconstructs typed JSON hierarchies from database records.
 - **`Encryption/`**:
   - [IValueEncryptor](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Encryption/IValueEncryptor.cs): Encryption abstraction.
   - [AesGcmValueEncryptor](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Encryption/AesGcmValueEncryptor.cs): Authenticated AES-GCM 256-bit encryption implementation.
@@ -35,3 +39,4 @@ Core library containing the Microsoft Configuration Provider implementation, sto
 - Storage engine calls must always pass parameterized values to prevent SQL injection.
 - Do not add driver-specific database packages directly to `PH.DbAppSettings.csproj` (keep it agnostic with relational EF Core and Dapper).
 - `AppSettingsDbContext` is an abstract class; never instantiate it directly with `new`. Always use generic extension methods `AddDbAppSettings<TContext>()` and `UseEntityFramework<TContext>()`.
+- In-App CLI commands are intercepted in `Program.cs` via `if (app.RunDbAppSettingsCli(args)) return;`.

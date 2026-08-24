@@ -2,11 +2,17 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using PH.DbAppSettings.Configuration;
+using PH.DbAppSettings.Storage;
 
-namespace PH.DbAppSettings.Cli.Services;
+namespace PH.DbAppSettings.Cli;
 
 public static class JsonTreeReconstructor
 {
+    public static string Reconstruct(IEnumerable<AppSettingRecord> records)
+    {
+        return ReconstructJson(records.Select(r => new KeyValuePair<string, string?>(r.Key, r.Value)));
+    }
+
     public static string ReconstructJson(IEnumerable<KeyValuePair<string, string?>> entries)
     {
         var root = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);

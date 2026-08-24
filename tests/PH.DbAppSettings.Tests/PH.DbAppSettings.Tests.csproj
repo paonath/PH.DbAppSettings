@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\PH.DbAppSettings\PH.DbAppSettings.csproj" />
-    <ProjectReference Include="..\..\src\PH.DbAppSettings.Cli\PH.DbAppSettings.Cli.csproj" />
     <ProjectReference Include="..\..\examples\PH.DbAppSettings.Example.MinimalApi\PH.DbAppSettings.Example.MinimalApi.csproj" />
   </ItemGroup>
 
