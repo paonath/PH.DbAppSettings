@@ -16,7 +16,7 @@ internal sealed class DbAppSettingsReader(IConfiguration configuration) : IDbApp
         {
             return configuration.GetValue<T>(key.Replace("__", ":"), defaultValue)!;
         }
-        
+
         return configuration.GetValue<T>(key, defaultValue)!;
     }
 }

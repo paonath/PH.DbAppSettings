@@ -3,9 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using PH.DbAppSettings.Configuration;
-using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Services;
 using PH.DbAppSettings.Storage;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -13,7 +13,7 @@ public class TypedReadingTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly string _connString;
-    private readonly AppSettingsDbContext _dbContext;
+    private readonly TestAppSettingsDbContext _dbContext;
 
     public TypedReadingTests()
     {
@@ -22,10 +22,10 @@ public class TypedReadingTests : IDisposable
         _connection = new SqliteConnection(_connString);
         _connection.Open();
 
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        _dbContext = new AppSettingsDbContext(options);
+        _dbContext = new TestAppSettingsDbContext(options);
         _dbContext.Database.EnsureCreated();
     }
 
@@ -115,7 +115,7 @@ public class TypedReadingTests : IDisposable
     {
         var config = new ConfigurationBuilder().Build();
         var reader = new DbAppSettingsReader(config);
-        
+
         var intValue = reader.GetValue("Missing", 42);
         var strValue = reader.GetValue("Missing", "default");
 
@@ -134,7 +134,7 @@ public class TypedReadingTests : IDisposable
             .Build();
 
         var reader = new DbAppSettingsReader(config);
-        
+
         // Simulates a section key with double underscore
         var options = reader.Get<SmtpOptions>("App__Smtp");
 
@@ -145,7 +145,12 @@ public class TypedReadingTests : IDisposable
     [Fact]
     public async Task Test_SetAsyncTyped_Int_RoundTrip()
     {
-        var dbOpts = new DbAppSettingsOptions { ConnectionString = _connString, Environment = "Test" };
+        var dbOpts = new DbAppSettingsOptions
+        {
+            ConnectionString = _connString,
+            Environment = "Test",
+            StorageEngineFactory = () => new EfCoreStorageEngine(_dbContext)
+        };
         var writer = new DbAppSettingsWriter(new EfCoreStorageEngine(_dbContext), dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
 
         await writer.SetAsync<int>("Settings__MaxItems", 100);
@@ -155,7 +160,8 @@ public class TypedReadingTests : IDisposable
             ConnectionString = _connString,
             Environment = "Test",
             AutoMigrate = false,
-            SeedOnEmpty = false
+            SeedOnEmpty = false,
+            StorageEngineFactory = () => new EfCoreStorageEngine(_dbContext)
         });
         provider.Load();
 
@@ -169,7 +175,12 @@ public class TypedReadingTests : IDisposable
     [Fact]
     public async Task Test_SetAsyncTyped_Bool_RoundTrip()
     {
-        var dbOpts = new DbAppSettingsOptions { ConnectionString = _connString, Environment = "Test" };
+        var dbOpts = new DbAppSettingsOptions
+        {
+            ConnectionString = _connString,
+            Environment = "Test",
+            StorageEngineFactory = () => new EfCoreStorageEngine(_dbContext)
+        };
         var writer = new DbAppSettingsWriter(new EfCoreStorageEngine(_dbContext), dbOpts, NullLogger<DbAppSettingsWriter>.Instance);
 
         await writer.SetAsync<bool>("Settings__IsEnabled", true);
@@ -179,7 +190,8 @@ public class TypedReadingTests : IDisposable
             ConnectionString = _connString,
             Environment = "Test",
             AutoMigrate = false,
-            SeedOnEmpty = false
+            SeedOnEmpty = false,
+            StorageEngineFactory = () => new EfCoreStorageEngine(_dbContext)
         });
         provider.Load();
 

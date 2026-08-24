@@ -14,10 +14,11 @@ Core library containing the Microsoft Configuration Provider implementation, sto
   - [IDbAppSettingsStorageEngine](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/IDbAppSettingsStorageEngine.cs): Unified storage interface for CRUD, schema creation, batch upsert, and timestamp queries.
   - [AppSettingRecord](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/AppSettingRecord.cs): Immutable record representing a configuration row with `UpdatedAt` timestamp.
   - [ISqlDialect](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/ISqlDialect.cs): Contract for SQL query generation across SQL Server, PostgreSQL, SQLite, and MySQL.
-  - [EfCoreStorageEngine](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/EfCoreStorageEngine.cs): EF Core adapter implementation.
+  - [EfCoreStorageEngine](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/EfCoreStorageEngine.cs): EF Core adapter implementation supporting polymorphic `AppSettingsDbContext` instances and migration switching.
   - [DapperStorageEngine](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Storage/DapperStorageEngine.cs): High-performance micro-ORM adapter using raw `DbConnection`.
 - **`Data/`**:
-  - [AppSettingsDbContext](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingsDbContext.cs): EF Core DbContext.
+  - [AppSettingsDbContext](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingsDbContext.cs): Abstract base EF Core `DbContext` (`AppSettingsDbContext` and `AppSettingsDbContext<TContext>`) inheritable by consumer application DbContexts.
+  - [AppSettingsDesignTimeDbContextFactory](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingsDesignTimeDbContextFactory.cs): Abstract base class implementing `IDesignTimeDbContextFactory<TContext>` for host application migration tooling.
   - [AppSettingEntry](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingEntry.cs): Entity model.
   - [AppSettingEntryConfiguration](file:///Users/paoloinnocenti/Documents/git/PH.DbAppSettings/src/PH.DbAppSettings/Data/AppSettingEntryConfiguration.cs): Fluent mapping configuration with ISO-8601 string value conversion for `UpdatedAt`.
 - **`Encryption/`**:
@@ -33,3 +34,4 @@ Core library containing the Microsoft Configuration Provider implementation, sto
 - Always keep `DbAppSettingsProvider.Data` keys normalized to `:` delimiter.
 - Storage engine calls must always pass parameterized values to prevent SQL injection.
 - Do not add driver-specific database packages directly to `PH.DbAppSettings.csproj` (keep it agnostic with relational EF Core and Dapper).
+- `AppSettingsDbContext` is an abstract class; never instantiate it directly with `new`. Always use generic extension methods `AddDbAppSettings<TContext>()` and `UseEntityFramework<TContext>()`.

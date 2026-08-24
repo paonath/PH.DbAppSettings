@@ -1,10 +1,10 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
-using PH.DbAppSettings.Services;
+using PH.DbAppSettings.Storage;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -22,19 +22,19 @@ public class DbAppSettingsProviderTests : IDisposable
         _connection.Open();
 
         // Ensure schema is created
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        using var ctx = new AppSettingsDbContext(options);
+        using var ctx = new TestAppSettingsDbContext(options);
         ctx.Database.EnsureCreated();
     }
 
     private void SeedDirectly(Dictionary<string, string?> entries, string env = "Test")
     {
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        using var ctx = new AppSettingsDbContext(options);
+        using var ctx = new TestAppSettingsDbContext(options);
         foreach (var (key, value) in entries)
         {
             ctx.AppSettings.Add(new AppSettingEntry { Key = key, Environment = env, Value = value });
@@ -56,7 +56,14 @@ public class DbAppSettingsProviderTests : IDisposable
             ConnectionString = _connString,
             Environment = "Test",
             AutoMigrate = false,
-            SeedOnEmpty = false
+            SeedOnEmpty = false,
+            StorageEngineFactory = () => new EfCoreStorageEngine(() =>
+            {
+                var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
+                    .UseSqlite(_connection)
+                    .Options;
+                return new TestAppSettingsDbContext(options);
+            })
         };
 
         var provider = new DbAppSettingsProvider(opts);
@@ -79,7 +86,14 @@ public class DbAppSettingsProviderTests : IDisposable
             ConnectionString = _connString,
             Environment = "Test",
             AutoMigrate = false,
-            SeedOnEmpty = false
+            SeedOnEmpty = false,
+            StorageEngineFactory = () => new EfCoreStorageEngine(() =>
+            {
+                var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
+                    .UseSqlite(_connection)
+                    .Options;
+                return new TestAppSettingsDbContext(options);
+            })
         };
 
         var provider = new DbAppSettingsProvider(opts);
@@ -104,7 +118,14 @@ public class DbAppSettingsProviderTests : IDisposable
             ConnectionString = _connString,
             Environment = "Test",
             AutoMigrate = false,
-            SeedOnEmpty = true
+            SeedOnEmpty = true,
+            StorageEngineFactory = () => new EfCoreStorageEngine(() =>
+            {
+                var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
+                    .UseSqlite(_connection)
+                    .Options;
+                return new TestAppSettingsDbContext(options);
+            })
         };
 
         var provider = new DbAppSettingsProvider(opts, bootstrapConfig);
@@ -112,6 +133,20 @@ public class DbAppSettingsProviderTests : IDisposable
 
         Assert.True(provider.TryGet("MyApp__Feature", out var v));
         Assert.Equal("enabled", v);
+    }
+
+    [Fact]
+    public void Load_ThrowsInvalidOperationException_WhenNoStorageEngineConfigured()
+    {
+        var opts = new DbAppSettingsOptions
+        {
+            ConnectionString = _connString,
+            Environment = "Test"
+        };
+
+        var provider = new DbAppSettingsProvider(opts);
+        var ex = Assert.Throws<InvalidOperationException>(() => provider.Load());
+        Assert.Contains("No storage engine configured", ex.Message);
     }
 
     public void Dispose()

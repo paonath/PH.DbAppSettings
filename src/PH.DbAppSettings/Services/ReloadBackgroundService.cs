@@ -1,10 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PH.DbAppSettings.Configuration;
-using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Storage;
 
 namespace PH.DbAppSettings.Services;
@@ -46,19 +44,6 @@ public sealed class ReloadBackgroundService : BackgroundService
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _storageEngine = storageEngine ?? throw new ArgumentNullException(nameof(storageEngine));
         _logger = logger;
-    }
-
-    public ReloadBackgroundService(
-        DbAppSettingsProvider provider,
-        DbAppSettingsOptions options,
-        ILogger<ReloadBackgroundService> logger)
-        : this(
-            provider,
-            options,
-            new EfCoreStorageEngine(() => new AppSettingsDbContext(
-                new DbContextOptionsBuilder<AppSettingsDbContext>().UseSqlite(options.ConnectionString).Options)),
-            logger)
-    {
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

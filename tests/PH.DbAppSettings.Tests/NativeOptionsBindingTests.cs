@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
+using PH.DbAppSettings.Storage;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -20,10 +22,10 @@ public class NativeOptionsBindingTests : IDisposable
         _connection = new SqliteConnection(_connString);
         _connection.Open();
 
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        using var ctx = new AppSettingsDbContext(options);
+        using var ctx = new TestAppSettingsDbContext(options);
         ctx.Database.EnsureCreated();
     }
 
@@ -47,10 +49,10 @@ public class NativeOptionsBindingTests : IDisposable
 
     private void SeedDatabase(Dictionary<string, string?> entries, string environment = "Production")
     {
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        using var ctx = new AppSettingsDbContext(options);
+        using var ctx = new TestAppSettingsDbContext(options);
         foreach (var (key, value) in entries)
         {
             ctx.AppSettings.Add(new AppSettingEntry
@@ -61,6 +63,24 @@ public class NativeOptionsBindingTests : IDisposable
             });
         }
         ctx.SaveChanges();
+    }
+
+    private DbAppSettingsOptions CreateOptions(string environment = "Production")
+    {
+        return new DbAppSettingsOptions
+        {
+            ConnectionString = _connString,
+            Environment = environment,
+            AutoMigrate = false,
+            SeedOnEmpty = false,
+            StorageEngineFactory = () => new EfCoreStorageEngine(() =>
+            {
+                var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
+                    .UseSqlite(_connection)
+                    .Options;
+                return new TestAppSettingsDbContext(options);
+            })
+        };
     }
 
     [Fact]
@@ -74,13 +94,7 @@ public class NativeOptionsBindingTests : IDisposable
             ["Smtp__UseSsl"] = "true"
         });
 
-        var provider = new DbAppSettingsProvider(new DbAppSettingsOptions
-        {
-            ConnectionString = _connString,
-            Environment = "Production",
-            AutoMigrate = false,
-            SeedOnEmpty = false
-        });
+        var provider = new DbAppSettingsProvider(CreateOptions());
         provider.Load();
 
         var config = new ConfigurationBuilder()
@@ -110,13 +124,7 @@ public class NativeOptionsBindingTests : IDisposable
             ["Features__EnableDarkMode"] = "false"
         });
 
-        var provider = new DbAppSettingsProvider(new DbAppSettingsOptions
-        {
-            ConnectionString = _connString,
-            Environment = "Production",
-            AutoMigrate = false,
-            SeedOnEmpty = false
-        });
+        var provider = new DbAppSettingsProvider(CreateOptions());
         provider.Load();
 
         var config = new ConfigurationBuilder()
@@ -145,13 +153,7 @@ public class NativeOptionsBindingTests : IDisposable
             ["Features__EnableDarkMode"] = "false"
         });
 
-        var provider = new DbAppSettingsProvider(new DbAppSettingsOptions
-        {
-            ConnectionString = _connString,
-            Environment = "Production",
-            AutoMigrate = false,
-            SeedOnEmpty = false
-        });
+        var provider = new DbAppSettingsProvider(CreateOptions());
         provider.Load();
 
         var config = new ConfigurationBuilder()

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PH.DbAppSettings;
+using PH.DbAppSettings.Example.MinimalApi.Data;
 using PH.DbAppSettings.Example.MinimalApi.Models;
 using PH.DbAppSettings.Services;
 using Scalar.AspNetCore;
@@ -24,19 +26,21 @@ var bootstrapConfig = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
-// 2. Add DbAppSettings configuration provider with Entity Framework Core
-builder.Configuration.AddDbAppSettings(bootstrapConfig, options =>
+// 2. Add DbAppSettings configuration provider with Entity Framework Core and AppDbContext
+builder.Configuration.AddDbAppSettings<AppDbContext>(bootstrapConfig, options =>
 {
-    options.UseEntityFrameworkSqlite(connectionString);
+    options.UseEntityFramework<AppDbContext>(b => b.UseSqlite(connectionString));
     options.AutoMigrate = true;
     options.SeedOnEmpty = true;
     options.ReloadInterval = TimeSpan.FromSeconds(5);
 });
 
 // 3. Register DbAppSettings DI services
-builder.Services.AddDbAppSettingsServices(options =>
+builder.Services.AddDbContext<AppDbContext>(opts => opts.UseSqlite(connectionString));
+
+builder.Services.AddDbAppSettingsServices<AppDbContext>(options =>
 {
-    options.UseEntityFrameworkSqlite(connectionString);
+    options.UseEntityFramework<AppDbContext>(b => b.UseSqlite(connectionString));
     options.ReloadInterval = TimeSpan.FromSeconds(5);
 });
 

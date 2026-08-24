@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PH.DbAppSettings.Configuration;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Services;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests.IntegrationTests;
 
@@ -18,12 +19,12 @@ public class BootstrapIntegrationTests : IDisposable
         _connection.Open();
     }
 
-    private AppSettingsDbContext CreateContext()
+    private TestAppSettingsDbContext CreateContext()
     {
-        var options = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        var options = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
-        var ctx = new AppSettingsDbContext(options);
+        var ctx = new TestAppSettingsDbContext(options);
         ctx.Database.EnsureCreated();
         return ctx;
     }

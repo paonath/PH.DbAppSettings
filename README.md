@@ -62,18 +62,35 @@ builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp")
 builder.Services.Configure<FeatureFlags>(builder.Configuration.GetSection("Features"));
 ```
 
-### 2. Using Entity Framework Core
+### 2. Using Entity Framework Core (Co-located Application Database)
+
+Inherit `AppSettingsDbContext<AppDbContext>` in your application's `DbContext`:
 
 ```csharp
-builder.Configuration.AddDbAppSettings(bootstrapConfig, options =>
+public class AppDbContext(DbContextOptions<AppDbContext> options) 
+    : AppSettingsDbContext<AppDbContext>(options)
 {
-    options.UseEntityFrameworkSqlite("Data Source=appconfig.db");
-    // Or with custom DbContext options:
-    // options.UseEntityFramework(b => b.UseSqlServer(connString));
-    
-    options.AutoMigrate = true;
-    options.SeedOnEmpty = true;
-    options.ReloadInterval = TimeSpan.FromMinutes(1);
+    public DbSet<User> Users => Set<User>();
+}
+```
+
+Configure `PH.DbAppSettings` in `Program.cs` with your preferred provider (PostgreSQL, SQL Server, MySQL, SQLite):
+
+```csharp
+// PostgreSQL via Npgsql:
+builder.Configuration.AddDbAppSettings<AppDbContext>(bootstrapConfig, options =>
+{
+    options.UseEntityFramework<AppDbContext>((builder, connStr) => builder.UseNpgsql(connStr));
+    options.UseMigrations = true; // Runs context.Database.MigrateAsync()
+    options.ReloadInterval = TimeSpan.FromSeconds(30);
+});
+
+// Register AppDbContext and DbAppSettings in DI container:
+builder.Services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connectionString));
+builder.Services.AddDbAppSettingsServices<AppDbContext>(options =>
+{
+    options.UseEntityFramework<AppDbContext>((builder, connStr) => builder.UseNpgsql(connStr));
+    options.ReloadInterval = TimeSpan.FromSeconds(30);
 });
 ```
 

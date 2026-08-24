@@ -15,6 +15,7 @@ public sealed class DbAppSettingsMutableOptions
     public string? ConnectionString { get; set; }
     public string Environment { get; set; } = "Production";
     public bool AutoMigrate { get; set; } = true;
+    public bool UseMigrations { get; set; } = false;
     public bool SeedOnEmpty { get; set; } = true;
     public bool ForceReseed { get; set; } = false;
     public IReadOnlyList<string> ExcludeKeysFromSeed { get; set; } = [];
@@ -46,25 +47,46 @@ public sealed class DbAppSettingsMutableOptions
     }
 
     /// <summary>
-    /// Configura l'uso del motore Entity Framework Core.
+    /// Configura l'uso del motore Entity Framework Core con un delegate factory.
     /// </summary>
-    public void UseEntityFramework(Action<DbContextOptionsBuilder<AppSettingsDbContext>> configureDbContext)
+    public void UseEntityFramework<TContext>(Func<TContext> contextFactory)
+        where TContext : AppSettingsDbContext
+    {
+        StorageEngineFactory = () => new EfCoreStorageEngine(() => contextFactory(), UseMigrations);
+    }
+
+    /// <summary>
+    /// Configura l'uso del motore Entity Framework Core configurando DbContextOptionsBuilder.
+    /// </summary>
+    public void UseEntityFramework<TContext>(Action<DbContextOptionsBuilder<TContext>> configureDbContext)
+        where TContext : AppSettingsDbContext
     {
         StorageEngineFactory = () =>
         {
-            var builder = new DbContextOptionsBuilder<AppSettingsDbContext>();
+            var builder = new DbContextOptionsBuilder<TContext>();
             configureDbContext(builder);
-            return new EfCoreStorageEngine(() => new AppSettingsDbContext(builder.Options));
+            return new EfCoreStorageEngine(() => (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!, UseMigrations);
         };
     }
 
     /// <summary>
-    /// Configura l'uso del motore Entity Framework Core con SQLite.
+    /// Configura l'uso del motore Entity Framework Core configurando DbContextOptionsBuilder con la ConnectionString risolta.
     /// </summary>
-    public void UseEntityFrameworkSqlite(string connectionString)
+    public void UseEntityFramework<TContext>(Action<DbContextOptionsBuilder<TContext>, string> configureDbContext)
+        where TContext : AppSettingsDbContext
     {
-        ConnectionString = connectionString;
-        UseEntityFramework(builder => builder.UseSqlite(connectionString));
+        if (string.IsNullOrWhiteSpace(ConnectionString))
+        {
+            throw new InvalidOperationException(
+                "ConnectionString must be configured before calling UseEntityFramework with connectionString delegate.");
+        }
+
+        StorageEngineFactory = () =>
+        {
+            var builder = new DbContextOptionsBuilder<TContext>();
+            configureDbContext(builder, ConnectionString);
+            return new EfCoreStorageEngine(() => (TContext)Activator.CreateInstance(typeof(TContext), builder.Options)!, UseMigrations);
+        };
     }
 
     public DbAppSettingsOptions ToOptions()
@@ -77,6 +99,7 @@ public sealed class DbAppSettingsMutableOptions
             ConnectionString = ConnectionString,
             Environment = Environment,
             AutoMigrate = AutoMigrate,
+            UseMigrations = UseMigrations,
             SeedOnEmpty = SeedOnEmpty,
             ForceReseed = ForceReseed,
             ExcludeKeysFromSeed = ExcludeKeysFromSeed,

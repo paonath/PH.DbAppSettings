@@ -60,6 +60,7 @@ public class StandaloneBootstrapTests : IDisposable
         var configuration = new ConfigurationBuilder()
             .AddDbAppSettings(bootstrapConfig, options =>
             {
+                options.UseDapperSqlite(_connString);
                 options.AutoMigrate = false;
                 options.SeedOnEmpty = false;
             })

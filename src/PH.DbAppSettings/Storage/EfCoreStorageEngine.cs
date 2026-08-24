@@ -7,26 +7,40 @@ public sealed class EfCoreStorageEngine : IDbAppSettingsStorageEngine
 {
     private readonly Func<AppSettingsDbContext> _contextFactory;
     private readonly bool _ownsContext;
+    private readonly bool _useMigrations;
 
-    public EfCoreStorageEngine(Func<AppSettingsDbContext> contextFactory)
+    public EfCoreStorageEngine(Func<AppSettingsDbContext> contextFactory, bool useMigrations = false)
     {
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _ownsContext = true;
+        _useMigrations = useMigrations;
     }
 
-    public EfCoreStorageEngine(AppSettingsDbContext dbContext)
+    public EfCoreStorageEngine(AppSettingsDbContext dbContext, bool useMigrations = false)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         _contextFactory = () => dbContext;
         _ownsContext = false;
+        _useMigrations = useMigrations;
     }
+
+    public static EfCoreStorageEngine FromContext<TContext>(Func<TContext> factory, bool useMigrations = false)
+        where TContext : AppSettingsDbContext
+        => new(() => factory(), useMigrations);
 
     public async Task EnsureSchemaCreatedAsync(CancellationToken ct = default)
     {
         var context = _contextFactory();
         try
         {
-            await context.Database.EnsureCreatedAsync(ct);
+            if (_useMigrations)
+            {
+                await context.Database.MigrateAsync(ct);
+            }
+            else
+            {
+                await context.Database.EnsureCreatedAsync(ct);
+            }
         }
         finally
         {

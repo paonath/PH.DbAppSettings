@@ -1,8 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Encryption;
 using PH.DbAppSettings.Services;
 using PH.DbAppSettings.Storage;
@@ -35,7 +33,19 @@ public sealed class DbAppSettingsProvider : ConfigurationProvider
 
     public async Task LoadAsync(CancellationToken ct = default)
     {
-        var engine = _storageEngine ?? CreateDefaultEfEngine();
+        var engine = _storageEngine;
+        if (engine is null)
+        {
+            if (_options.StorageEngineFactory is not null)
+            {
+                engine = _options.StorageEngineFactory();
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "No storage engine configured. Please configure an Entity Framework Core or Dapper storage engine using options.UseEntityFramework<TContext>(...) or options.UseDapper(...).");
+            }
+        }
 
         if (_options.AutoMigrate)
         {
@@ -82,15 +92,6 @@ public sealed class DbAppSettingsProvider : ConfigurationProvider
         Data = data;
         _logger.LogInformation("Loaded {Count} configuration keys from database (environment: {Environment})",
             data.Count, _options.Environment);
-    }
-
-    private IDbAppSettingsStorageEngine CreateDefaultEfEngine()
-    {
-        var dbContextOptions = new DbContextOptionsBuilder<AppSettingsDbContext>()
-            .UseSqlite(_options.ConnectionString)
-            .Options;
-
-        return new EfCoreStorageEngine(() => new AppSettingsDbContext(dbContextOptions));
     }
 
     public override bool TryGet(string key, out string? value)

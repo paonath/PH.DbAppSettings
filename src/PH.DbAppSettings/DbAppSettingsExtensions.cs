@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PH.DbAppSettings.Configuration;
@@ -13,7 +12,6 @@ public static class DbAppSettingsExtensions
 {
     /// <summary>
     /// Aggiunge DbAppSettings come IConfigurationProvider con configurazione esplicita.
-    /// Deve essere chiamato DOPO aver aggiunto appsettings.json.
     /// </summary>
     public static IConfigurationBuilder AddDbAppSettings(
         this IConfigurationBuilder builder,
@@ -28,8 +26,7 @@ public static class DbAppSettingsExtensions
     }
 
     /// <summary>
-    /// Aggiunge DbAppSettings leggendo la ConnectionString da bootstrapConfig
-    /// (chiave: "DbAppSettings:ConnectionString" o env var "DbAppSettings__ConnectionString").
+    /// Aggiunge DbAppSettings leggendo la ConnectionString da bootstrapConfig.
     /// </summary>
     public static IConfigurationBuilder AddDbAppSettings(
         this IConfigurationBuilder builder,
@@ -38,12 +35,15 @@ public static class DbAppSettingsExtensions
     {
         var connectionString = bootstrapConfig["DbAppSettings:ConnectionString"]
             ?? bootstrapConfig["DbAppSettings__ConnectionString"]
+            ?? bootstrapConfig["ConnectionStrings:DefaultConnection"]
+            ?? bootstrapConfig["ConnectionStrings__DefaultConnection"]
             ?? throw new InvalidOperationException(
                 "DbAppSettings connection string not found. " +
-                "Set 'DbAppSettings:ConnectionString' in appsettings.json or " +
-                "'DbAppSettings__ConnectionString' as environment variable.");
+                "Set 'DbAppSettings:ConnectionString' or 'ConnectionStrings:DefaultConnection' in configuration or environment variables.");
 
-        var environment = bootstrapConfig["ASPNETCORE_ENVIRONMENT"] ?? "Production";
+        var environment = bootstrapConfig["ASPNETCORE_ENVIRONMENT"]
+            ?? bootstrapConfig["DOTNET_ENVIRONMENT"]
+            ?? "Production";
 
         var mutable = new DbAppSettingsMutableOptions
         {
@@ -58,6 +58,29 @@ public static class DbAppSettingsExtensions
     }
 
     /// <summary>
+    /// Aggiunge DbAppSettings come IConfigurationProvider per un AppSettingsDbContext derivato.
+    /// </summary>
+    public static IConfigurationBuilder AddDbAppSettings<TContext>(
+        this IConfigurationBuilder builder,
+        Action<DbAppSettingsMutableOptions> configure)
+        where TContext : AppSettingsDbContext
+    {
+        return builder.AddDbAppSettings(configure);
+    }
+
+    /// <summary>
+    /// Aggiunge DbAppSettings con bootstrapConfig per un AppSettingsDbContext derivato.
+    /// </summary>
+    public static IConfigurationBuilder AddDbAppSettings<TContext>(
+        this IConfigurationBuilder builder,
+        IConfiguration bootstrapConfig,
+        Action<DbAppSettingsMutableOptions>? configure = null)
+        where TContext : AppSettingsDbContext
+    {
+        return builder.AddDbAppSettings(bootstrapConfig, configure);
+    }
+
+    /// <summary>
     /// Registra i servizi DbAppSettings nel DI container con configurazione fluida.
     /// </summary>
     public static IServiceCollection AddDbAppSettingsServices(
@@ -68,6 +91,46 @@ public static class DbAppSettingsExtensions
         configure(mutable);
         var options = mutable.ToOptions();
         return services.AddDbAppSettingsServices(options);
+    }
+
+    /// <summary>
+    /// Registra i servizi DbAppSettings nel DI container per un AppSettingsDbContext derivato.
+    /// </summary>
+    public static IServiceCollection AddDbAppSettingsServices<TContext>(
+        this IServiceCollection services,
+        Action<DbAppSettingsMutableOptions> configure)
+        where TContext : AppSettingsDbContext
+    {
+        var mutable = new DbAppSettingsMutableOptions();
+        configure(mutable);
+        var options = mutable.ToOptions();
+        return services.AddDbAppSettingsServices<TContext>(options);
+    }
+
+    /// <summary>
+    /// Registra i servizi DbAppSettings nel DI container per un AppSettingsDbContext derivato con DbAppSettingsOptions.
+    /// </summary>
+    public static IServiceCollection AddDbAppSettingsServices<TContext>(
+        this IServiceCollection services,
+        DbAppSettingsOptions options)
+        where TContext : AppSettingsDbContext
+    {
+        services.AddSingleton(options);
+
+        services.AddSingleton<IDbAppSettingsStorageEngine>(sp =>
+        {
+            if (options.StorageEngineFactory is not null)
+            {
+                return options.StorageEngineFactory();
+            }
+
+            return new EfCoreStorageEngine(
+                () => sp.CreateScope().ServiceProvider.GetRequiredService<TContext>(),
+                options.UseMigrations);
+        });
+
+        RegisterCommonServices(services, options);
+        return services;
     }
 
     /// <summary>
@@ -86,23 +149,16 @@ public static class DbAppSettingsExtensions
                 return options.StorageEngineFactory();
             }
 
-            return new EfCoreStorageEngine(() =>
-            {
-                var dbOpts = new DbContextOptionsBuilder<AppSettingsDbContext>()
-                    .UseSqlite(options.ConnectionString)
-                    .Options;
-                return new AppSettingsDbContext(dbOpts);
-            });
+            throw new InvalidOperationException(
+                "A storage engine must be configured via options.StorageEngineFactory or by using AddDbAppSettingsServices<TContext>().");
         });
 
-        services.AddDbContext<AppSettingsDbContext>(dbOpts =>
-        {
-            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
-            {
-                dbOpts.UseSqlite(options.ConnectionString);
-            }
-        });
+        RegisterCommonServices(services, options);
+        return services;
+    }
 
+    private static void RegisterCommonServices(IServiceCollection services, DbAppSettingsOptions options)
+    {
         services.AddScoped<IDbAppSettingsReader, DbAppSettingsReader>();
         services.AddScoped<IDbAppSettingsWriter, DbAppSettingsWriter>();
         services.AddTransient<SeedService>();
@@ -120,7 +176,5 @@ public static class DbAppSettingsExtensions
             services.AddSingleton<ReloadBackgroundService>();
             services.AddHostedService(sp => sp.GetRequiredService<ReloadBackgroundService>());
         }
-
-        return services;
     }
 }

@@ -2,13 +2,14 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using PH.DbAppSettings.Data;
 using PH.DbAppSettings.Storage;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests;
 
 public class EfCoreStorageEngineTests : IDisposable
 {
     private readonly SqliteConnection _connection;
-    private readonly DbContextOptions<AppSettingsDbContext> _dbContextOptions;
+    private readonly DbContextOptions<TestAppSettingsDbContext> _dbContextOptions;
 
     public EfCoreStorageEngineTests()
     {
@@ -17,7 +18,7 @@ public class EfCoreStorageEngineTests : IDisposable
         _connection = new SqliteConnection(connString);
         _connection.Open();
 
-        _dbContextOptions = new DbContextOptionsBuilder<AppSettingsDbContext>()
+        _dbContextOptions = new DbContextOptionsBuilder<TestAppSettingsDbContext>()
             .UseSqlite(_connection)
             .Options;
     }
@@ -27,16 +28,16 @@ public class EfCoreStorageEngineTests : IDisposable
         _connection.Dispose();
     }
 
-    private EfCoreStorageEngine CreateEngine()
+    private EfCoreStorageEngine CreateEngine(bool useMigrations = false)
     {
-        return new EfCoreStorageEngine(() => new AppSettingsDbContext(_dbContextOptions));
+        return new EfCoreStorageEngine(() => new TestAppSettingsDbContext(_dbContextOptions), useMigrations);
     }
 
     [Fact]
     public async Task EnsureSchemaCreatedAsync_CreatesTableOnEmptyDatabase()
     {
         // Arrange
-        var engine = CreateEngine();
+        var engine = CreateEngine(useMigrations: false);
 
         // Act
         await engine.EnsureSchemaCreatedAsync();
@@ -44,6 +45,16 @@ public class EfCoreStorageEngineTests : IDisposable
 
         // Assert
         Assert.True(isEmpty);
+    }
+
+    [Fact]
+    public void FromContext_CreatesValidEngineInstance()
+    {
+        // Act
+        var engine = EfCoreStorageEngine.FromContext(() => new TestAppSettingsDbContext(_dbContextOptions));
+
+        // Assert
+        Assert.NotNull(engine);
     }
 
     [Fact]

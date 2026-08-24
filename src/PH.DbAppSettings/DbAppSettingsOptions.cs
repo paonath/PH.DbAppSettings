@@ -13,6 +13,9 @@ public sealed class DbAppSettingsOptions
     /// <summary>Applica automaticamente le migrazioni o creazione tabella al bootstrap.</summary>
     public bool AutoMigrate { get; init; } = true;
 
+    /// <summary>Usa Database.MigrateAsync invece di Database.EnsureCreatedAsync per l'inizializzazione dello schema.</summary>
+    public bool UseMigrations { get; init; } = false;
+
     /// <summary>Esegue il seeding da appsettings.json se il DB è vuoto.</summary>
     public bool SeedOnEmpty { get; init; } = true;
 

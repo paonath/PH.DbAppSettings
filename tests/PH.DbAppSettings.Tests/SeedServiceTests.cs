@@ -8,7 +8,7 @@ namespace PH.DbAppSettings.Tests;
 public class SeedServiceTests : IDisposable
 {
     private readonly Microsoft.Data.Sqlite.SqliteConnection _connection;
-    private readonly PH.DbAppSettings.Data.AppSettingsDbContext _dbContext;
+    private readonly TestAppSettingsDbContext _dbContext;
 
     public SeedServiceTests()
     {
@@ -17,12 +17,6 @@ public class SeedServiceTests : IDisposable
 
     private static IConfiguration BuildConfig(Dictionary<string, string?> values)
         => new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-
-    private SeedService CreateSeedService(DbAppSettingsOptions? options = null)
-        => new SeedService(
-            _dbContext,
-            options ?? new DbAppSettingsOptions { ConnectionString = "Data Source=:memory:", Environment = "Test" },
-            NullLogger<SeedService>.Instance);
 
     [Fact]
     public async Task SeedAsync_SeedsHierarchicalKeys()

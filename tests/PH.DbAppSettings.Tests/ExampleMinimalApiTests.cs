@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using PH.DbAppSettings.Example.MinimalApi.Models;
 using PH.DbAppSettings.Services;
+using PH.DbAppSettings.Tests.Helpers;
 
 namespace PH.DbAppSettings.Tests;
 
@@ -91,9 +93,9 @@ public class ExampleMinimalApiTests : IDisposable
         var builder = new ConfigurationBuilder()
             .AddJsonFile(_jsonPath);
 
-        builder.AddDbAppSettings(bootstrapConfig, options =>
+        builder.AddDbAppSettings<TestAppSettingsDbContext>(bootstrapConfig, options =>
         {
-            options.UseEntityFrameworkSqlite($"Data Source={_dbPath}");
+            options.UseEntityFramework<TestAppSettingsDbContext>(b => b.UseSqlite($"Data Source={_dbPath}"));
             options.AutoMigrate = true;
             options.SeedOnEmpty = true;
             options.ReloadInterval = TimeSpan.FromSeconds(5);
@@ -105,9 +107,11 @@ public class ExampleMinimalApiTests : IDisposable
         services.AddSingleton(configuration);
         services.AddLogging();
 
-        services.AddDbAppSettingsServices(options =>
+        services.AddDbContext<TestAppSettingsDbContext>(opts => opts.UseSqlite($"Data Source={_dbPath}"));
+
+        services.AddDbAppSettingsServices<TestAppSettingsDbContext>(options =>
         {
-            options.UseEntityFrameworkSqlite($"Data Source={_dbPath}");
+            options.UseEntityFramework<TestAppSettingsDbContext>(b => b.UseSqlite($"Data Source={_dbPath}"));
             options.ReloadInterval = TimeSpan.FromSeconds(5);
         });
 
