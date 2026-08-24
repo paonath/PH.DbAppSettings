@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased] - 2026-08-24 UTC
-Branch: feature/first_rel
+Branch: feature/first_rel | Commit: 5a620cf
 
 ### Added
 - Embedded In-App CLI engine (`DbAppSettingsCliRunner`) in `PH.DbAppSettings.Cli` namespace inside the core package, providing `analyze`, `import`, `ingest` (`-y`), `export`, and `rewrite-json` subcommands without external tool dependencies.
