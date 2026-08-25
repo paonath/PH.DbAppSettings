@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-08-24 UTC
-Branch: feature/first_rel | Commit: 62dc510
+## [Unreleased] - 2026-08-25 UTC
+Branch: feature/script_for_publish | Commit: 2dd6a37
 
 ### Added
+- Added repository root publishing script `publish.sh` (POSIX Bash) and companion `publish.ps1` (PowerShell) with Git branch verification, guarding against accidental releases on non-main branches with interactive confirmation prompts defaulting to rejection (`[y/N]`).
 - Configured `PackageReadmeFile` and bundled repository root `README.md` directly into the generated NuGet package root (`PackagePath="\"`) for rich documentation rendering on NuGet.org.
 - Added complete NuGet package authoring metadata to `PH.DbAppSettings.csproj` (`Authors`, `Company`, `PackageLicenseExpression`, `PackageProjectUrl`, `RepositoryUrl`, `RepositoryType`, `PackageTags`, `PackageReleaseNotes`).
 - Configured SourceLink and symbol packaging (`IncludeSymbols`, `SymbolPackageFormat=snupkg`, `PublishRepositoryUrl`, `EmbedUntrackedSources`).
