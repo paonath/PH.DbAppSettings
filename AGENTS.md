@@ -38,6 +38,8 @@ dotnet run --project examples/PH.DbAppSettings.Example.MinimalApi -- dbappsettin
 dotnet run --project examples/PH.DbAppSettings.Example.MinimalApi -- dbappsettings import appsettings.json -e Production
 dotnet run --project examples/PH.DbAppSettings.Example.MinimalApi -- dbappsettings export appsettings.exported.json
 dotnet run --project examples/PH.DbAppSettings.Example.MinimalApi -- dbappsettings rewrite-json appsettings.rewritten.json
+# Pack release packages guarded by git branch check
+./publish.sh
 ```
 
 ## Code Style & Development Rules
